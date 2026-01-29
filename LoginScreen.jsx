@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { User, ArrowRight, ShieldCheck, AlertCircle, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, ArrowRight, ShieldCheck, AlertCircle, Clock, Wifi, WifiOff, DownloadCloud, AlertTriangle } from 'lucide-react';
 import axios from 'axios';
 import logoCI from '../assets/images/HHI_white2_ko.png';
 import RegisterModal from '../components/RegisterModal';
 
-// 배경 이미지
+// ==========================================
+// [설정] 클라이언트 버전 (서버와 다르면 접속 불가)
+// ==========================================
+const CLIENT_VERSION = "1.0.1"; 
+
 const structureBgUrl = "https://images.unsplash.com/photo-1553653841-453082536a9d?q=80&w=1000&auto=format&fit=crop";
 
 export default function LoginScreen({ onLoginSuccess }) {
@@ -12,46 +16,83 @@ export default function LoginScreen({ onLoginSuccess }) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
-  // 모달 열림/닫힘 상태 관리
+  // 상태 관리
+  const [isServerLive, setIsServerLive] = useState(null); // 서버 연결 상태
+  const [isVersionMismatch, setIsVersionMismatch] = useState(false); // 버전 불일치 여부
+  const [serverVersion, setServerVersion] = useState(''); // 서버에서 받아온 버전
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
-  // 입력값 변경 핸들러 (디버깅용 로그 포함)
+  // [초기화] 서버 상태 및 버전 체크
+  useEffect(() => {
+    const initCheck = async () => {
+      try {
+        // 1. 서버 버전 가져오기
+        const response = await axios.get('http://127.0.0.1:8000/api/version');
+        const fetchedServerVersion = response.data.version;
+        setServerVersion(fetchedServerVersion);
+        setIsServerLive(true);
+
+        // 2. 버전 비교 (문자열 비교)
+        if (fetchedServerVersion !== CLIENT_VERSION) {
+          console.warn(`Version Mismatch! Client: ${CLIENT_VERSION}, Server: ${fetchedServerVersion}`);
+          setIsVersionMismatch(true); // 차단 활성화
+        } else {
+          setIsVersionMismatch(false);
+        }
+
+      } catch (error) {
+        console.error("Server Check Failed:", error);
+        setIsServerLive(false);
+      }
+    };
+
+    initCheck();
+
+    // 3. 로컬 스토리지에서 저장된 사번 불러오기
+    const savedId = localStorage.getItem('savedEmployeeId');
+    if (savedId) setEmployeeId(savedId);
+
+  }, []);
+
   const handleInputChange = (e) => {
     setEmployeeId(e.target.value);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isVersionMismatch) return; // 버전 다르면 아예 함수 종료
+
     setIsLoading(true);
     setErrorMsg('');
 
+    // 로그인 시도 시 사번 저장
+    localStorage.setItem('savedEmployeeId', employeeId);
+
     try {
-      // 로그인 API 호출
       const response = await axios.post('http://127.0.0.1:8000/api/login', {
         employee_id: employeeId
       });
 
       console.log('Login Success:', response.data);
       localStorage.setItem('user', JSON.stringify(response.data));
-      onLoginSuccess(); // 메인 화면으로 이동
+      onLoginSuccess(); 
 
     } catch (error) {
       console.error('Login Error:', error);
       
-      if (error.response) {
+      if (!error.response) {
+         setIsServerLive(false);
+         setErrorMsg("서버 응답이 없습니다.");
+      } else {
         if (error.response.status === 404) {
           setErrorMsg("등록되지 않은 사번입니다.");
         } 
         else if (error.response.status === 403) {
-          setErrorMsg("PENDING_APPROVAL"); // 승인 대기 상태
+          setErrorMsg("PENDING_APPROVAL"); 
         }
         else {
           setErrorMsg(`로그인 오류: ${error.response.status}`);
         }
-      } else if (error.request) {
-        setErrorMsg("서버에 접속할 수 없습니다.");
-      } else {
-        setErrorMsg("알 수 없는 오류가 발생했습니다.");
       }
     } finally {
       setIsLoading(false);
@@ -61,16 +102,13 @@ export default function LoginScreen({ onLoginSuccess }) {
   return (
     <div className="flex min-h-screen w-full bg-brand-gray font-sans overflow-hidden relative">
       
-      {/* 1. 좌측 브랜딩 패널 (w-1/3) */}
+      {/* 1. 좌측 브랜딩 패널 */}
       <div className="hidden lg:flex w-1/3 relative flex-col p-12 text-white overflow-hidden" style={{ backgroundColor: '#002554' }}>
-        
-        {/* 배경 이미지 (z-0) */}
         <div className="absolute inset-0 z-0 pointer-events-none">
           <img src={structureBgUrl} alt="Structure" className="w-full h-full object-cover opacity-50 mix-blend-overlay grayscale contrast-125 transform scale-105" />
           <div className="absolute inset-0 bg-gradient-to-b from-[#002554]/90 via-[#002554]/40 to-[#002554]/90"></div>
         </div>
 
-        {/* 중앙 컨텐츠 영역 (z-10) */}
         <div className="relative z-10 flex-1 flex flex-col justify-center pointer-events-none">
            <div className="mb-8">
              <img src={logoCI} alt="HD Hyundai CI" className="h-10 w-auto object-contain" />
@@ -79,118 +117,164 @@ export default function LoginScreen({ onLoginSuccess }) {
             HiTESS <br/> <span style={{ color: '#00E600' }}>WorkBench</span>
           </h1>
           <div className="h-1.5 w-20 bg-[#008233] mt-8 rounded-full"></div>
+          
+          {/* 버전 표시 */}
+          <p className="mt-4 text-xs text-blue-200 opacity-60 font-mono">
+            Client v{CLIENT_VERSION}
+          </p>
         </div>
 
-        {/* 하단 Footer 텍스트 */}
         <div className="relative z-10 mt-auto pointer-events-none">
            <h3 className="text-lg font-bold mb-2 text-white">System Solution Team</h3>
            <p className="text-gray-300 text-xs font-light leading-relaxed">Structural System Research Department<br/>Hyundai Maritime Research Institute</p>
         </div>
       </div>
 
-      {/* 2. 우측 로그인 폼 (z-50: 최상단 배치로 입력 보장) */}
+      {/* 2. 우측 로그인 폼 */}
       <div className="flex-1 flex flex-col justify-center items-center p-10 bg-white shadow-xl relative z-50">
+        
+        {/* 서버 상태 표시 배지 */}
+        <div className="absolute top-6 right-6 transition-all duration-500 ease-in-out">
+          {isServerLive === true && !isVersionMismatch && (
+            <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full shadow-sm animate-fade-in-down">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              <span className="text-xs font-bold text-green-700 tracking-wide">Server v{serverVersion}</span>
+            </div>
+          )}
+          {isServerLive === false && (
+            <div className="flex items-center space-x-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-full shadow-sm">
+              <WifiOff className="h-4 w-4 text-red-500" />
+              <span className="text-xs font-bold text-red-600">Offline</span>
+            </div>
+          )}
+        </div>
+
         <div className="w-full max-w-sm space-y-8">
           
-          <div className="text-center lg:text-left">
-            <h2 className="text-3xl font-bold text-slate-800">Hi-TESS Access</h2>
-            <p className="mt-2 text-sm text-gray-500 font-medium">사번을 입력하여 접속하십시오.</p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* 에러 및 상태 메시지 */}
-            {errorMsg && (
-              <div className={`p-4 rounded-lg border flex items-start animate-pulse ${
-                errorMsg === "PENDING_APPROVAL" 
-                  ? "bg-yellow-50 border-yellow-200 text-yellow-700" 
-                  : "bg-red-50 border-red-200 text-red-600"
-              }`}>
-                {errorMsg === "PENDING_APPROVAL" ? (
-                  <Clock className="mr-3 h-5 w-5 mt-0.5 flex-shrink-0" />
-                ) : (
-                  <AlertCircle className="mr-3 h-5 w-5 mt-0.5 flex-shrink-0" />
-                )}
-                
-                <div className="flex-1">
-                  {errorMsg === "PENDING_APPROVAL" ? (
-                    <div>
-                      <span className="font-bold block text-sm">승인 대기 중입니다.</span>
-                      <span className="text-xs opacity-90">관리자 승인 후 접속 가능합니다.</span>
-                    </div>
-                  ) : (
-                    <span className="text-sm font-bold block">{errorMsg}</span>
-                  )}
-
-                  {errorMsg.includes("등록되지 않은") && (
-                     <button 
-                       type="button"
-                       onClick={() => setIsRegisterOpen(true)}
-                       className="mt-2 w-full py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold rounded transition-colors cursor-pointer"
-                     >
-                       신규 회원가입 진행하기
-                     </button>
-                  )}
+          {/* ---------------------------------------------------------------- */}
+          {/* [CASE 1] 버전 불일치 시: 경고 화면 표시 (로그인 차단) */}
+          {/* ---------------------------------------------------------------- */}
+          {isVersionMismatch ? (
+            <div className="bg-red-50 border-2 border-red-100 rounded-2xl p-8 text-center shadow-lg animate-pulse-slow">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 mb-4">
+                <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+              <h2 className="text-xl font-bold text-red-700 mb-2">업데이트 필요</h2>
+              <p className="text-sm text-red-600 mb-6 leading-relaxed">
+                클라이언트 버전이 서버와 일치하지 않습니다.<br/>
+                안정적인 서비스를 위해 업데이트가 필요합니다.
+              </p>
+              
+              <div className="bg-white p-3 rounded-lg border border-red-100 text-xs text-gray-500 mb-6 font-mono">
+                <div className="flex justify-between mb-1">
+                  <span>Your Version:</span>
+                  <span className="font-bold text-red-500">{CLIENT_VERSION}</span>
+                </div>
+                <div className="flex justify-between border-t border-gray-100 pt-1">
+                  <span>Server Version:</span>
+                  <span className="font-bold text-green-600">{serverVersion}</span>
                 </div>
               </div>
-            )}
 
-            <div className="space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-[#003087] uppercase mb-2">Employee ID</label>
-                <div className="relative group z-10"> {/* 입력창 그룹 z-index 추가 */}
-                  <User className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 group-focus-within:text-[#008233] transition-colors z-20" />
-                  <input
-                    type="text"
-                    required
-                    autoFocus // 화면 로딩 시 자동 포커스
-                    className="block w-full pl-10 pr-3 py-4 border-2 border-gray-200 rounded-lg focus:border-[#008233] focus:ring-0 outline-none transition-all text-slate-800 text-lg font-medium placeholder:text-base placeholder:font-normal relative z-10 bg-transparent"
-                    placeholder="사번 입력"
-                    value={employeeId}
-                    onChange={handleInputChange}
-                  />
-                </div>
-              </div>
+              <button 
+                className="w-full flex items-center justify-center py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors shadow-md"
+                onClick={() => alert("사내 포털에서 최신 설치 파일을 다운로드 해주세요.")}
+              >
+                <DownloadCloud className="mr-2 h-5 w-5" />
+                최신 버전 다운로드
+              </button>
             </div>
+          ) : (
+            /* ---------------------------------------------------------------- */
+            /* [CASE 2] 정상 접속 시: 로그인 폼 표시 */
+            /* ---------------------------------------------------------------- */
+            <>
+              <div className="text-center lg:text-left">
+                <h2 className="text-3xl font-bold text-slate-800">Hi-TESS Access</h2>
+                <p className="mt-2 text-sm text-gray-500 font-medium">사번을 입력하여 접속하십시오.</p>
+              </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center items-center py-4 px-4 text-sm font-bold rounded-lg text-white shadow-md hover:shadow-lg transition-all transform hover:-translate-y-1 mt-4 cursor-pointer relative z-10"
-              style={{ backgroundColor: isLoading ? '#9ca3af' : '#008233' }}
-            >
-              {isLoading ? (
-                <span className="flex items-center"><span className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>Checking Info...</span>
-              ) : (
-                <span className="flex items-center text-base tracking-widest">ACCESS WORKBENCH <ArrowRight className="ml-2 h-5 w-5" /></span>
-              )}
-            </button>
-          </form>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                
+                {errorMsg && (
+                  <div className={`p-4 rounded-lg border flex items-start animate-pulse ${
+                    errorMsg === "PENDING_APPROVAL" 
+                      ? "bg-yellow-50 border-yellow-200 text-yellow-700" 
+                      : "bg-red-50 border-red-200 text-red-600"
+                  }`}>
+                    {errorMsg === "PENDING_APPROVAL" ? <Clock className="mr-3 h-5 w-5 flex-shrink-0" /> : <AlertCircle className="mr-3 h-5 w-5 flex-shrink-0" />}
+                    <div className="flex-1">
+                      {errorMsg === "PENDING_APPROVAL" ? (
+                        <div>
+                          <span className="font-bold block text-sm">승인 대기 중입니다.</span>
+                          <span className="text-xs opacity-90">관리자 승인 후 접속 가능합니다.</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold block">{errorMsg}</span>
+                      )}
+                      
+                      {errorMsg.includes("등록되지 않은") && (
+                        <button type="button" onClick={() => setIsRegisterOpen(true)} className="mt-2 w-full py-1.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-bold rounded">
+                          신규 회원가입 진행하기
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
-          <div className="text-center text-sm text-gray-500">
-             계정이 없으신가요? 
-             <button 
-               onClick={() => setIsRegisterOpen(true)}
-               className="ml-2 font-bold text-[#003087] hover:underline cursor-pointer"
-             >
-               신규 등록
-             </button>
-          </div>
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-xs font-bold text-[#003087] uppercase mb-2">Employee ID</label>
+                    <div className="relative group z-10">
+                      <User className="absolute left-3 top-3.5 h-5 w-5 text-gray-400 group-focus-within:text-[#008233] transition-colors z-20" />
+                      <input
+                        type="text"
+                        required
+                        autoFocus 
+                        className="block w-full pl-10 pr-3 py-4 border-2 border-gray-200 rounded-lg focus:border-[#008233] focus:ring-0 outline-none transition-all text-slate-800 text-lg font-medium placeholder:text-base placeholder:font-normal relative z-10 bg-transparent"
+                        placeholder="사번 입력"
+                        value={employeeId}
+                        onChange={handleInputChange}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-          <div className="mt-6 pt-6 border-t border-gray-100 flex justify-center">
-             <div className="flex items-center space-x-2 text-xs text-gray-400 font-medium">
-                <ShieldCheck size={14} /> <span>© 2026 Kwon Hyuk min . All rights reserved.</span>
-             </div>
-          </div>
+                <button
+                  type="submit"
+                  disabled={isLoading || isServerLive === false}
+                  className={`w-full flex justify-center items-center py-4 px-4 text-sm font-bold rounded-lg text-white shadow-md transition-all transform hover:-translate-y-1 mt-4 cursor-pointer relative z-10 ${
+                    isLoading || isServerLive === false ? 'bg-gray-400 cursor-not-allowed hover:transform-none' : 'bg-[#008233] hover:shadow-lg'
+                  }`}
+                >
+                  {isLoading ? (
+                    <span className="flex items-center"><span className="animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>Checking Info...</span>
+                  ) : (
+                    <span className="flex items-center text-base tracking-widest">ACCESS WORKBENCH <ArrowRight className="ml-2 h-5 w-5" /></span>
+                  )}
+                </button>
+              </form>
+
+              <div className="text-center text-sm text-gray-500">
+                계정이 없으신가요? 
+                <button onClick={() => setIsRegisterOpen(true)} className="ml-2 font-bold text-[#003087] hover:underline cursor-pointer">
+                  신규 등록
+                </button>
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-gray-100 flex justify-center">
+                <div className="flex items-center space-x-2 text-xs text-gray-400 font-medium">
+                    <ShieldCheck size={14} /> <span>© 2026 Kwon Hyuk min . All rights reserved.</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
         
-        {/* 회원가입 모달 */}
-        <RegisterModal 
-          isOpen={isRegisterOpen} 
-          onClose={() => setIsRegisterOpen(false)} 
-          initialEmployeeId={employeeId}
-        />
-
+        <RegisterModal isOpen={isRegisterOpen} onClose={() => setIsRegisterOpen(false)} initialEmployeeId={employeeId} />
       </div>
     </div>
   );
