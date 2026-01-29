@@ -1,6 +1,6 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition, Listbox } from '@headlessui/react';
-import { X, UserPlus, Building, Briefcase, User, CheckCircle, ChevronDown, Check } from 'lucide-react';
+import { X, UserPlus, Building, Briefcase, User, CheckCircle, ChevronDown, Check, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
 
 // ==========================================
@@ -16,15 +16,25 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  
+  // [추가] 가입 성공 상태 관리 (true면 성공 화면 보여줌)
+  const [isSuccess, setIsSuccess] = useState(false);
 
   // 회사 목록 데이터
   const companyOptions = ['HD 현대중공업', 'HD 현대삼호', 'HD 한국조선해양'];
   // 직위 목록 데이터
   const positionOptions = ['책임연구원', '책임엔지니어', '선임연구원', '선임엔지니어', '연구원', '엔지니어'];
 
+  // 모달이 열릴 때 초기화
   useEffect(() => {
-    if (isOpen && initialEmployeeId) {
-      setFormData(prev => ({ ...prev, employee_id: initialEmployeeId }));
+    if (isOpen) {
+      if (initialEmployeeId) {
+        setFormData(prev => ({ ...prev, employee_id: initialEmployeeId }));
+      }
+      // 모달 열릴 때 상태 초기화
+      setIsSuccess(false);
+      setErrorMsg('');
+      setIsLoading(false);
     }
   }, [isOpen, initialEmployeeId]);
 
@@ -43,9 +53,12 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
     setErrorMsg('');
 
     try {
+      // 백엔드 요청
       await axios.post('http://127.0.0.1:8000/api/register', { ...formData, permissions: [] });
-      alert("회원가입이 완료되었습니다! 로그인해주세요.");
-      onClose();
+      
+      // [수정] alert 대신 성공 화면(isSuccess)으로 전환
+      setIsSuccess(true);
+      
     } catch (error) {
       console.error("Register Error:", error);
       if (error.response && error.response.status === 400) {
@@ -58,9 +71,15 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
     }
   };
 
+  // 모달 닫기 핸들러 (성공 상태 초기화 포함)
+  const handleClose = () => {
+    setIsSuccess(false);
+    onClose();
+  };
+
   return (
     <Transition appear show={isOpen} as={Fragment}>
-      <Dialog as="div" className="relative z-50" onClose={onClose}>
+      <Dialog as="div" className="relative z-50" onClose={handleClose}>
         
         {/* 배경 블러 오버레이 */}
         <Transition.Child
@@ -76,7 +95,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
+          <div className="flex min-h-full items-start justify-center p-4 text-center pt-20">
             
             <Transition.Child
               as={Fragment}
@@ -87,103 +106,149 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
               leaveFrom="opacity-100 scale-100 translate-y-0"
               leaveTo="opacity-0 scale-95 translate-y-4"
             >
-              {/* [수정 1] overflow-hidden 제거, overflow-visible 적용 */}
               <Dialog.Panel className="w-full max-w-md transform overflow-visible rounded-2xl bg-white text-left align-middle shadow-2xl transition-all border border-gray-100">
                 
-                {/* [수정 2] rounded-t-2xl 추가 (상단 모서리 둥글게) */}
-                <div className="bg-gradient-to-r from-[#002554] to-[#003366] p-6 flex justify-between items-center text-white shadow-md rounded-t-2xl">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/10 rounded-full backdrop-blur-sm">
-                       <UserPlus className="h-6 w-6 text-[#00E600]" />
+                {/* ------------------------------------------------------- */}
+                {/* [화면 1] 성공 화면 (isSuccess === true) */}
+                {/* ------------------------------------------------------- */}
+                {isSuccess ? (
+                  <div className="p-8 text-center">
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 mb-6 animate-bounce">
+                      <CheckCircle className="h-10 w-10 text-green-600" />
                     </div>
-                    <div>
-                        <Dialog.Title as="h3" className="text-lg font-bold tracking-wide leading-none">
-                        Hi-TESS Join
-                        </Dialog.Title>
-                        <p className="text-xs text-blue-200 mt-1 font-light">시스템 접속 권한 신청</p>
+                    
+                    <Dialog.Title as="h3" className="text-2xl font-bold text-gray-900 mb-2">
+                      가입 신청 완료
+                    </Dialog.Title>
+                    
+                    <div className="mt-2 space-y-4">
+                      <p className="text-sm text-gray-500 leading-relaxed">
+                        가입 신청이 성공적으로 접수되었습니다.<br/>
+                        <span className="font-bold text-blue-600">관리자 승인 후</span> 시스템 이용이 가능합니다.
+                      </p>
+                      
+                      <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-left flex items-start">
+                         <ShieldCheck className="h-5 w-5 text-blue-600 mr-3 mt-0.5 flex-shrink-0" />
+                         <div className="text-xs text-blue-700">
+                            <strong>보안 안내:</strong><br/>
+                            승인 처리는 담당자가 확인 후 진행하며, <br/>
+                            승인 완료 시 메일로 알림이 발송될 수 있습니다.
+                         </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-8">
+                      <button
+                        type="button"
+                        className="w-full inline-flex justify-center rounded-xl border border-transparent bg-[#008233] px-4 py-3 text-sm font-bold text-white hover:bg-[#006b29] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-all shadow-lg hover:shadow-xl"
+                        onClick={handleClose}
+                      >
+                        확인 (로그인 화면으로 이동)
+                      </button>
                     </div>
                   </div>
-                  <button onClick={onClose} className="text-blue-200 hover:text-white hover:bg-white/20 p-1.5 rounded-full transition-colors focus:outline-none">
-                    <X size={20} />
-                  </button>
-                </div>
-
-                {/* [수정 3] rounded-b-2xl 추가 (하단 모서리 둥글게) */}
-                <div className="p-8 bg-slate-50/50 rounded-b-2xl">
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    
-                    {errorMsg && (
-                      <div className="bg-red-50/80 text-red-600 text-sm p-3 rounded-xl border border-red-200 font-bold text-center shadow-sm animate-pulse">
-                        ⚠️ {errorMsg}
+                ) : (
+                
+                /* ------------------------------------------------------- */
+                /* [화면 2] 기존 입력 폼 (isSuccess === false) */
+                /* ------------------------------------------------------- */
+                <>
+                  {/* 상단 헤더 */}
+                  <div className="bg-gradient-to-r from-[#002554] to-[#003366] p-6 flex justify-between items-center text-white shadow-md rounded-t-2xl">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-white/10 rounded-full backdrop-blur-sm">
+                        <UserPlus className="h-6 w-6 text-[#00E600]" />
                       </div>
-                    )}
-
-                    <div className="space-y-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                        {/* 사번 */}
-                        <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">사번 입력</label>
-                        <div className="relative group">
-                            <User className="absolute left-3 top-3 h-5 w-5 text-gray-400 transition-colors group-focus-within:text-[#008233]" />
-                            <input
-                            type="text"
-                            name="employee_id"
-                            required
-                            value={formData.employee_id}
-                            onChange={handleChange}
-                            className="block w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#008233]/50 focus:border-[#008233] outline-none transition-all font-mono text-slate-700"
-                            placeholder="A123456"
-                            />
-                        </div>
-                        </div>
-
-                        {/* 이름 */}
-                        <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">이름</label>
-                        <input
-                            type="text"
-                            name="name"
-                            required
-                            value={formData.name}
-                            onChange={handleChange}
-                            className="block w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#008233]/50 focus:border-[#008233] outline-none transition-all text-slate-700"
-                            placeholder="홍길동"
-                        />
-                        </div>
+                      <div>
+                          <Dialog.Title as="h3" className="text-lg font-bold tracking-wide leading-none">
+                          Hi-TESS Join
+                          </Dialog.Title>
+                          <p className="text-xs text-blue-200 mt-1 font-light">시스템 접속 권한 신청</p>
+                      </div>
                     </div>
-
-                    <div className="grid grid-cols-1 gap-5 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative z-10">
-                      <StyledListbox
-                        label="회사"
-                        value={formData.company}
-                        onChange={(val) => handleSelectChange('company', val)}
-                        options={companyOptions}
-                        icon={Building}
-                        zIndex="z-50" // z-index props 추가
-                      />
-                      <StyledListbox
-                        label="직급"
-                        value={formData.position}
-                        onChange={(val) => handleSelectChange('position', val)}
-                        options={positionOptions}
-                        icon={Briefcase}
-                        zIndex="z-40" // z-index props 추가
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full flex justify-center items-center py-3.5 px-4 mt-4 bg-gradient-to-r from-[#008233] to-[#00A84D] hover:from-[#006b29] hover:to-[#008233] text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                      {isLoading ? 'Registering...' : (
-                        <span className="flex items-center text-base tracking-wide">
-                          Join Request <CheckCircle className="ml-2 h-5 w-5" />
-                        </span>
-                      )}
+                    <button onClick={handleClose} className="text-blue-200 hover:text-white hover:bg-white/20 p-1.5 rounded-full transition-colors focus:outline-none cursor-pointer">
+                      <X size={20} />
                     </button>
+                  </div>
 
-                  </form>
-                </div>
+                  {/* 바디 */}
+                  <div className="p-8 bg-slate-50/50 rounded-b-2xl">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                      
+                      {errorMsg && (
+                        <div className="bg-red-50/80 text-red-600 text-sm p-3 rounded-xl border border-red-200 font-bold text-center shadow-sm animate-pulse">
+                          ⚠️ {errorMsg}
+                        </div>
+                      )}
+
+                      <div className="space-y-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                          {/* 사번 */}
+                          <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">사번 입력</label>
+                          <div className="relative group">
+                              <User className="absolute left-3 top-3 h-5 w-5 text-gray-400 transition-colors group-focus-within:text-[#008233]" />
+                              <input
+                              type="text"
+                              name="employee_id"
+                              required
+                              value={formData.employee_id}
+                              onChange={handleChange}
+                              className="block w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#008233]/50 focus:border-[#008233] outline-none transition-all font-mono text-slate-700"
+                              placeholder="A123456"
+                              />
+                          </div>
+                          </div>
+
+                          {/* 이름 */}
+                          <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">이름</label>
+                          <input
+                              type="text"
+                              name="name"
+                              required
+                              value={formData.name}
+                              onChange={handleChange}
+                              className="block w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-[#008233]/50 focus:border-[#008233] outline-none transition-all text-slate-700"
+                              placeholder="홍길동"
+                          />
+                          </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-5 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative z-10">
+                        <StyledListbox
+                          label="회사"
+                          value={formData.company}
+                          onChange={(val) => handleSelectChange('company', val)}
+                          options={companyOptions}
+                          icon={Building}
+                          zIndex="z-50"
+                        />
+                        <StyledListbox
+                          label="직급"
+                          value={formData.position}
+                          onChange={(val) => handleSelectChange('position', val)}
+                          options={positionOptions}
+                          icon={Briefcase}
+                          zIndex="z-40"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isLoading}
+                        className="w-full flex justify-center items-center py-3.5 px-4 mt-4 bg-gradient-to-r from-[#008233] to-[#00A84D] hover:from-[#006b29] hover:to-[#008233] text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {isLoading ? 'Registering...' : (
+                          <span className="flex items-center text-base tracking-wide">
+                            Join Request <CheckCircle className="ml-2 h-5 w-5" />
+                          </span>
+                        )}
+                      </button>
+
+                    </form>
+                  </div>
+                </>
+                )}
               </Dialog.Panel>
             </Transition.Child>
           </div>
@@ -194,7 +259,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
 }
 
 // ==========================================
-// [내부 컴포넌트] Styled Listbox
+// [내부 컴포넌트] Styled Listbox (변경 없음)
 // ==========================================
 function StyledListbox({ label, value, onChange, options, icon: Icon, zIndex = "z-10" }) {
   return (
@@ -218,7 +283,6 @@ function StyledListbox({ label, value, onChange, options, icon: Icon, zIndex = "
             leaveFrom="opacity-100 scale-100"
             leaveTo="opacity-0 scale-95"
           >
-            {/* [수정 4] max-h 조절 (스크롤 생기게) 및 쉐도우 강화 */}
             <Listbox.Options className="absolute mt-2 max-h-60 w-full overflow-auto rounded-xl bg-white py-1 text-base shadow-2xl ring-1 ring-black/10 focus:outline-none sm:text-sm divide-y divide-gray-100 z-[100]">
               {options.map((option, optionIdx) => (
                 <Listbox.Option
