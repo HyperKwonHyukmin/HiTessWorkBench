@@ -8,7 +8,7 @@ export default function SplashScreen({ onFinish }) {
   useEffect(() => {
     const timer1 = setTimeout(() => setLoadingText('Loading Solver Engines...'), 1000);
     const timer2 = setTimeout(() => setLoadingText('Connecting to Local Database...'), 2000);
-    const timer3 = setTimeout(() => onFinish(), 3500);
+    const timer3 = setTimeout(() => onFinish(), 3000);
 
     return () => {
       clearTimeout(timer1);
