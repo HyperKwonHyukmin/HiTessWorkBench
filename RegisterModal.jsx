@@ -11,16 +11,16 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
     employee_id: '',
     name: '',
     company: 'HD 현대중공업',
-    position: '선임 연구원',
+    position: '책임 엔지니어',
     permissions: []
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   // 회사 목록 데이터
-  const companyOptions = ['HD 현대중공업', 'HD 현대삼호', 'HD 현대미포', 'HD 한국조선해양'];
+  const companyOptions = ['HD 현대중공업', 'HD 현대삼호', 'HD 한국조선해양'];
   // 직위 목록 데이터
-  const positionOptions = ['책임 연구원', '책임 엔지니어', '선임 연구원', '선임 엔지니어', '연구원', '엔지니어'];
+  const positionOptions = ['책임연구원', '책임엔지니어', '선임연구원', '선임엔지니어', '연구원', '엔지니어'];
 
   useEffect(() => {
     if (isOpen && initialEmployeeId) {
@@ -98,7 +98,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
                     </div>
                     <div>
                         <Dialog.Title as="h3" className="text-lg font-bold tracking-wide leading-none">
-                        New Engineer Registration
+                        Hi-TESS Join
                         </Dialog.Title>
                         <p className="text-xs text-blue-200 mt-1 font-light">시스템 접속 권한 신청</p>
                     </div>
@@ -121,7 +121,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
                     <div className="space-y-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                         {/* 사번 */}
                         <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Employee ID</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">사번 입력</label>
                         <div className="relative group">
                             <User className="absolute left-3 top-3 h-5 w-5 text-gray-400 transition-colors group-focus-within:text-[#008233]" />
                             <input
@@ -138,7 +138,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
 
                         {/* 이름 */}
                         <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">Full Name</label>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1.5 ml-1">이름</label>
                         <input
                             type="text"
                             name="name"
@@ -153,7 +153,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
 
                     <div className="grid grid-cols-1 gap-5 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 relative z-10">
                       <StyledListbox
-                        label="Company"
+                        label="회사"
                         value={formData.company}
                         onChange={(val) => handleSelectChange('company', val)}
                         options={companyOptions}
@@ -161,7 +161,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
                         zIndex="z-50" // z-index props 추가
                       />
                       <StyledListbox
-                        label="Position"
+                        label="직급"
                         value={formData.position}
                         onChange={(val) => handleSelectChange('position', val)}
                         options={positionOptions}
@@ -177,7 +177,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
                     >
                       {isLoading ? 'Registering...' : (
                         <span className="flex items-center text-base tracking-wide">
-                          COMPLETE REGISTRATION <CheckCircle className="ml-2 h-5 w-5" />
+                          Join Request <CheckCircle className="ml-2 h-5 w-5" />
                         </span>
                       )}
                     </button>
