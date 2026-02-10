@@ -8,7 +8,6 @@ import {
   HardDrive, 
   Activity,
   FileText,
-  Zap,
   Layers,
   Thermometer,
   Wind,
@@ -16,12 +15,13 @@ import {
   BarChart3,
   CheckCircle2,
   PlayCircle,
-  ArrowUpRight
+  ArrowUpRight,
+  Megaphone, 
+  Star
 } from 'lucide-react';
 
 /**
- * [Modified] 상단 주요 통계 카드
- * - titleKo prop 추가: 영문 타이틀 밑에 한글 설명 표시
+ * [Row 1] 상단 주요 통계 카드
  */
 const EngineeringStatCard = ({ title, titleKo, value, subtext, icon: Icon, color, trend, onClick }) => (
   <div 
@@ -29,27 +29,22 @@ const EngineeringStatCard = ({ title, titleKo, value, subtext, icon: Icon, color
     className="relative bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between 
     hover:shadow-lg hover:border-blue-300 hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
   >
-    {/* 호버 시 우측 상단 화살표 */}
     <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400">
       <ArrowUpRight size={18} />
     </div>
 
     <div>
-      {/* 영문 타이틀 */}
       <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider group-hover:text-blue-600 transition-colors">
         {title}
       </h3>
-      {/* [New] 한글 부제 */}
       <p className="text-[11px] text-gray-400 font-bold mt-0.5 mb-2">
         {titleKo}
       </p>
 
-      {/* 값 (Value) */}
       <div className="mt-1 flex items-center space-x-2">
         <span className="text-2xl font-extrabold text-slate-800 tracking-tight">{value}</span>
       </div>
       
-      {/* 하단 설명 */}
       <p className={`mt-1 text-xs font-medium ${trend === 'warning' ? 'text-red-500' : 'text-slate-400'}`}>
         {subtext}
       </p>
@@ -62,10 +57,44 @@ const EngineeringStatCard = ({ title, titleKo, value, subtext, icon: Icon, color
 );
 
 /**
- * 2. [Quick Launch] 빠른 실행 카드
+ * [Row 2] 관리자 공지사항 (Notice) - 닫기 버튼 제거됨
  */
-const QuickActionCard = ({ title, icon: Icon, color, desc }) => (
-  <button className="flex flex-col items-center justify-center p-6 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-500 hover:-translate-y-1 transition-all group w-full text-center h-full">
+const NoticeBanner = () => (
+  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between shadow-sm mb-6 relative overflow-hidden">
+    {/* 배경 데코레이션 */}
+    <div className="absolute -right-6 -top-6 text-blue-100 opacity-50 rotate-12">
+      <Megaphone size={120} />
+    </div>
+
+    <div className="flex items-start gap-4 relative z-10 w-full">
+      <div className="p-2 bg-blue-100 text-blue-600 rounded-lg flex-shrink-0">
+        <Megaphone size={20} />
+      </div>
+      <div className="flex-1">
+        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+          System Development Notice
+          <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-extrabold uppercase tracking-wide">
+            Important
+          </span>
+        </h3>
+        <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+          Hi-TESS WorkBench 개발 진행 중입니다
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+/**
+ * [Row 3] 즐겨찾기 카드 (Favorites)
+ */
+const FavoriteCard = ({ title, icon: Icon, color, desc }) => (
+  <button className="flex flex-col items-center justify-center p-6 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-500 hover:-translate-y-1 transition-all group w-full text-center h-full relative overflow-hidden">
+    {/* 즐겨찾기 별 아이콘 */}
+    <div className="absolute top-3 right-3 text-yellow-400">
+      <Star size={16} fill="currentColor" />
+    </div>
+
     <div className={`p-4 rounded-full ${color} text-white mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
       <Icon size={28} />
     </div>
@@ -75,45 +104,7 @@ const QuickActionCard = ({ title, icon: Icon, color, desc }) => (
 );
 
 /**
- * 3. [Live Monitor] 실시간 솔버 현황
- */
-const SolverStatusCard = () => (
-  <div className="bg-[#002554] text-white rounded-xl p-6 shadow-lg relative overflow-hidden h-full flex flex-col justify-between cursor-pointer hover:shadow-xl transition-shadow" onClick={() => alert("솔버 모니터링 상세 페이지로 이동")}>
-    <div className="absolute top-0 right-0 p-4 opacity-10">
-      <Activity size={100} />
-    </div>
-
-    <div className="flex justify-between items-start relative z-10">
-      <div>
-        <h3 className="text-lg font-bold flex items-center">
-          <Zap className="text-yellow-400 mr-2" size={20} fill="currentColor" />
-          Active Solver Job
-        </h3>
-        <p className="text-blue-200 text-xs mt-1">Job ID: SIM-2024-004</p>
-      </div>
-      <span className="bg-blue-600 text-xs px-2 py-1 rounded font-mono animate-pulse">Running</span>
-    </div>
-
-    <div className="mt-6 relative z-10">
-      <div className="flex justify-between text-xs mb-2 font-mono text-blue-200">
-        <span>Iteration: 145/200</span>
-        <span>Est. Remaining: 12m 30s</span>
-      </div>
-      <div className="w-full bg-blue-900 rounded-full h-3 overflow-hidden border border-blue-800">
-        <div 
-          className="bg-gradient-to-r from-[#00E600] to-[#008233] h-full rounded-full transition-all duration-1000 ease-out relative"
-          style={{ width: '72%' }}
-        >
-           <div className="absolute inset-0 bg-white/20 animate-[shimmer_2s_infinite]"></div>
-        </div>
-      </div>
-      <p className="text-right text-xs font-bold text-[#00E600] mt-1">72%</p>
-    </div>
-  </div>
-);
-
-/**
- * 4. [Recent Files] 프로젝트 리스트
+ * [Row 4] 최근 프로젝트 리스트
  */
 const ProjectRow = ({ id, name, type, status, date }) => {
   const statusStyles = {
@@ -163,7 +154,7 @@ export default function Dashboard() {
       <div className="flex justify-between items-end mb-2">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Workbench Overview</h1>
-          <p className="text-sm text-gray-500 mt-1">Track your job progress, check server health, and review current usage.</p>
+          <p className="text-sm text-gray-500 mt-1">Check your simulation status and system resources.</p>
         </div>
         <div className="text-right">
            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
@@ -173,14 +164,15 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* 2. Key Engineering Stats Row (3 Columns) */}
+      {/* ----------------------------------------------------------------- */}
+      {/* [Row 1] Key Engineering Stats (주요 통계) */}
+      {/* ----------------------------------------------------------------- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
         
-        {/* Stat 1: My Current Job (내 작업 현황 - 단일 작업) */}
+        {/* Stat 1: My Current Job */}
         <EngineeringStatCard 
           title="My Current Job" 
           titleKo="내 작업 현황"
-          // Running 상태일 때 애니메이션 효과 추가
           value={
             <div className="flex items-center text-blue-600">
                <span className="relative flex h-3 w-3 mr-2">
@@ -196,7 +188,7 @@ export default function Dashboard() {
           onClick={() => handleNavigation('/solver/job-manager')}
         />
         
-        {/* Stat 2: Server Status (서버 작동 현황) */}
+        {/* Stat 2: Server Status */}
         <EngineeringStatCard 
           title="Server Status"
           titleKo="서버 내 진행 중 해석(건)" 
@@ -207,7 +199,7 @@ export default function Dashboard() {
           onClick={() => handleNavigation('/solver/monitoring')}
         />
 
-        {/* Stat 3: Monthly Usage (월간 사용량) */}
+        {/* Stat 3: Monthly Usage */}
         <EngineeringStatCard 
           title="Monthly Usage" 
           titleKo="월간 사용량"
@@ -219,55 +211,50 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* 3. Main Grid Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* Left: Quick Launch (2/3 width) */}
-        <div className="lg:col-span-2 space-y-4 flex flex-col">
-          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-            <Play size={16} /> Quick Launch
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-            <QuickActionCard 
-              title="Structural" 
-              desc="Static / Transient" 
-              icon={Layers} 
-              color="bg-blue-600" 
-            />
-            <QuickActionCard 
-              title="Thermal" 
-              desc="Heat Transfer" 
-              icon={Thermometer} 
-              color="bg-red-500" 
-            />
-            <QuickActionCard 
-              title="CFD" 
-              desc="Fluid Dynamics" 
-              icon={Wind} 
-              color="bg-cyan-500" 
-            />
-            <QuickActionCard 
-              title="Open Project" 
-              desc="Load .wbpj" 
-              icon={FolderOpen} 
-              color="bg-slate-500" 
-            />
-          </div>
-        </div>
+      {/* ----------------------------------------------------------------- */}
+      {/* [Row 2] Admin Notice (관리자 공지사항) - 닫기 버튼 없음 */}
+      {/* ----------------------------------------------------------------- */}
+      <NoticeBanner />
 
-        {/* Right: Live Monitor (1/3 width) */}
-        <div className="space-y-4 flex flex-col">
-          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-            <Activity size={16} /> Solver Status
-          </h2>
-          <div className="flex-1">
-            <SolverStatusCard />
-          </div>
+      {/* ----------------------------------------------------------------- */}
+      {/* [Row 3] Favorites (즐겨찾기) - 전체 너비 사용 */}
+      {/* ----------------------------------------------------------------- */}
+      <div className="space-y-4">
+        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+          <Star size={16} className="text-yellow-500" fill="currentColor" /> Favorites
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <FavoriteCard 
+            title="Structural" 
+            desc="Static / Transient" 
+            icon={Layers} 
+            color="bg-blue-600" 
+          />
+          <FavoriteCard 
+            title="Thermal" 
+            desc="Heat Transfer" 
+            icon={Thermometer} 
+            color="bg-red-500" 
+          />
+          <FavoriteCard 
+            title="CFD" 
+            desc="Fluid Dynamics" 
+            icon={Wind} 
+            color="bg-cyan-500" 
+          />
+          <FavoriteCard 
+            title="Open Project" 
+            desc="Load .wbpj" 
+            icon={FolderOpen} 
+            color="bg-slate-500" 
+          />
         </div>
       </div>
 
-      {/* 4. Bottom Section: Recent Projects */}
-      <div className="mt-4">
+      {/* ----------------------------------------------------------------- */}
+      {/* [Row 4] Recent Projects (최근 프로젝트) */}
+      {/* ----------------------------------------------------------------- */}
+      <div className="mt-8">
         <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
           <Clock size={16} /> Recent Projects
         </h2>
