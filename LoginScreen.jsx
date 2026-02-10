@@ -7,7 +7,7 @@ import RegisterModal from '../components/RegisterModal';
 // ==========================================
 // [설정] 클라이언트 버전 (서버와 다르면 접속 불가)
 // ==========================================
-const CLIENT_VERSION = "1.0.1"; 
+const CLIENT_VERSION = "1.0.0"; 
 
 const structureBgUrl = "https://images.unsplash.com/photo-1553653841-453082536a9d?q=80&w=1000&auto=format&fit=crop";
 
