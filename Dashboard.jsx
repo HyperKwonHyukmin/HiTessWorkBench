@@ -1,6 +1,6 @@
 import React from 'react';
 import { 
-  Plus, 
+  Play, 
   FolderOpen, 
   Clock, 
   MoreVertical, 
@@ -8,35 +8,114 @@ import {
   HardDrive, 
   Activity,
   FileText,
-  PlayCircle
+  Zap,
+  Layers,
+  Thermometer,
+  Wind,
+  Server,
+  BarChart3,
+  CheckCircle2,
+  PlayCircle,
+  ArrowUpRight
 } from 'lucide-react';
 
 /**
- * 1. 통계 카드 컴포넌트
- * - 주요 지표를 직관적으로 보여줍니다.
+ * [Modified] 상단 주요 통계 카드
+ * - titleKo prop 추가: 영문 타이틀 밑에 한글 설명 표시
  */
-const StatCard = ({ title, value, unit, subtext, icon: Icon, color }) => (
-  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow flex items-start justify-between">
-    <div>
-      <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider">{title}</h3>
-      <div className="mt-3 flex items-baseline space-x-1">
-        <span className="text-2xl font-bold text-slate-800">{value}</span>
-        {unit && <span className="text-sm text-slate-500 font-medium">{unit}</span>}
-      </div>
-      <p className="mt-1 text-xs text-gray-400">{subtext}</p>
+const EngineeringStatCard = ({ title, titleKo, value, subtext, icon: Icon, color, trend, onClick }) => (
+  <div 
+    onClick={onClick}
+    className="relative bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-start justify-between 
+    hover:shadow-lg hover:border-blue-300 hover:-translate-y-1 transition-all duration-200 cursor-pointer group"
+  >
+    {/* 호버 시 우측 상단 화살표 */}
+    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400">
+      <ArrowUpRight size={18} />
     </div>
-    <div className={`p-3 rounded-lg ${color}`}>
-      <Icon size={20} className="text-white" />
+
+    <div>
+      {/* 영문 타이틀 */}
+      <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider group-hover:text-blue-600 transition-colors">
+        {title}
+      </h3>
+      {/* [New] 한글 부제 */}
+      <p className="text-[11px] text-gray-400 font-bold mt-0.5 mb-2">
+        {titleKo}
+      </p>
+
+      {/* 값 (Value) */}
+      <div className="mt-1 flex items-center space-x-2">
+        <span className="text-2xl font-extrabold text-slate-800 tracking-tight">{value}</span>
+      </div>
+      
+      {/* 하단 설명 */}
+      <p className={`mt-1 text-xs font-medium ${trend === 'warning' ? 'text-red-500' : 'text-slate-400'}`}>
+        {subtext}
+      </p>
+    </div>
+
+    <div className={`p-3 rounded-lg ${color} bg-opacity-10 group-hover:bg-opacity-20 transition-all`}>
+      <Icon size={22} className={color.replace('bg-', 'text-')} />
     </div>
   </div>
 );
 
 /**
- * 2. 프로젝트 리스트 행 컴포넌트
- * - 상태(Status)에 따라 배지 색상이 변합니다.
+ * 2. [Quick Launch] 빠른 실행 카드
+ */
+const QuickActionCard = ({ title, icon: Icon, color, desc }) => (
+  <button className="flex flex-col items-center justify-center p-6 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-blue-500 hover:-translate-y-1 transition-all group w-full text-center h-full">
+    <div className={`p-4 rounded-full ${color} text-white mb-4 group-hover:scale-110 transition-transform shadow-lg`}>
+      <Icon size={28} />
+    </div>
+    <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
+    <p className="text-xs text-gray-400 mt-1">{desc}</p>
+  </button>
+);
+
+/**
+ * 3. [Live Monitor] 실시간 솔버 현황
+ */
+const SolverStatusCard = () => (
+  <div className="bg-[#002554] text-white rounded-xl p-6 shadow-lg relative overflow-hidden h-full flex flex-col justify-between cursor-pointer hover:shadow-xl transition-shadow" onClick={() => alert("솔버 모니터링 상세 페이지로 이동")}>
+    <div className="absolute top-0 right-0 p-4 opacity-10">
+      <Activity size={100} />
+    </div>
+
+    <div className="flex justify-between items-start relative z-10">
+      <div>
+        <h3 className="text-lg font-bold flex items-center">
+          <Zap className="text-yellow-400 mr-2" size={20} fill="currentColor" />
+          Active Solver Job
+        </h3>
+        <p className="text-blue-200 text-xs mt-1">Job ID: SIM-2024-004</p>
+      </div>
+      <span className="bg-blue-600 text-xs px-2 py-1 rounded font-mono animate-pulse">Running</span>
+    </div>
+
+    <div className="mt-6 relative z-10">
+      <div className="flex justify-between text-xs mb-2 font-mono text-blue-200">
+        <span>Iteration: 145/200</span>
+        <span>Est. Remaining: 12m 30s</span>
+      </div>
+      <div className="w-full bg-blue-900 rounded-full h-3 overflow-hidden border border-blue-800">
+        <div 
+          className="bg-gradient-to-r from-[#00E600] to-[#008233] h-full rounded-full transition-all duration-1000 ease-out relative"
+          style={{ width: '72%' }}
+        >
+           <div className="absolute inset-0 bg-white/20 animate-[shimmer_2s_infinite]"></div>
+        </div>
+      </div>
+      <p className="text-right text-xs font-bold text-[#00E600] mt-1">72%</p>
+    </div>
+  </div>
+);
+
+/**
+ * 4. [Recent Files] 프로젝트 리스트
  */
 const ProjectRow = ({ id, name, type, status, date }) => {
-  // 상태별 스타일 매핑
   const statusStyles = {
     Completed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     Solving: 'bg-blue-100 text-blue-700 border-blue-200 animate-pulse',
@@ -49,19 +128,19 @@ const ProjectRow = ({ id, name, type, status, date }) => {
       <td className="py-3 px-4 font-mono text-xs text-gray-500">{id}</td>
       <td className="py-3 px-4">
         <div className="flex items-center">
-          <FileText size={16} className="text-slate-400 mr-2" />
+          <FileText size={16} className="text-slate-400 mr-2 group-hover:text-blue-600 transition-colors" />
           <span className="font-medium text-slate-700 group-hover:text-blue-600 transition-colors cursor-pointer">
             {name}
           </span>
         </div>
       </td>
-      <td className="py-3 px-4 text-sm text-gray-600">{type}</td>
+      <td className="py-3 px-4 text-xs text-gray-500 font-mono bg-slate-100 rounded inline-block mt-2 mx-4">{type}</td>
       <td className="py-3 px-4">
         <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${statusStyles[status] || statusStyles.Draft}`}>
           {status}
         </span>
       </td>
-      <td className="py-3 px-4 text-sm text-gray-400 text-right">{date}</td>
+      <td className="py-3 px-4 text-xs text-gray-400 text-right">{date}</td>
       <td className="py-3 px-4 text-center">
         <button className="text-gray-300 hover:text-gray-600">
           <MoreVertical size={16} />
@@ -71,144 +150,152 @@ const ProjectRow = ({ id, name, type, status, date }) => {
   );
 };
 
-/**
- * 메인 대시보드 컴포넌트
- */
 export default function Dashboard() {
+  
+  const handleNavigation = (path) => {
+    alert(`이동합니다: ${path}`);
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
       
-      {/* 1. 상단 환영 메시지 및 날짜 */}
+      {/* 1. Header Area */}
       <div className="flex justify-between items-end mb-2">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Overview of your analysis projects and system status.</p>
+          <h1 className="text-2xl font-bold text-slate-800">Workbench Overview</h1>
+          <p className="text-sm text-gray-500 mt-1">Track your job progress, check server health, and review current usage.</p>
         </div>
         <div className="text-right">
-          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide">System Ready</p>
-          <p className="text-sm text-gray-400 font-mono">v1.0.0-beta</p>
+           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+             <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+             Engine Connected
+           </span>
         </div>
       </div>
 
-      {/* 2. 주요 통계 (Stats Grid) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard 
-          title="Total Projects" 
-          value="12" 
-          subtext="+2 this week" 
-          icon={FolderOpen} 
-          color="bg-blue-500" 
-        />
-        <StatCard 
-          title="Active Solver" 
-          value="1" 
-          unit="Job Running" 
-          subtext="Est. 15 min left" 
-          icon={Activity} 
-          color="bg-emerald-500" 
-        />
-        <StatCard 
-          title="CPU Usage" 
-          value="34" 
-          unit="%" 
-          subtext="8 Cores Active" 
-          icon={Cpu} 
-          color="bg-violet-500" 
-        />
-        <StatCard 
-          title="Disk Space" 
-          value="450" 
-          unit="GB" 
-          subtext="Free of 1TB" 
-          icon={HardDrive} 
-          color="bg-amber-500" 
-        />
-      </div>
-
-      {/* 3. 퀵 액션 버튼 영역 */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-600 mr-2">Quick Actions:</span>
-          
-          <button className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium">
-            <Plus size={16} />
-            <span>New Analysis</span>
-          </button>
-          
-          <button className="flex items-center space-x-2 bg-white hover:bg-slate-50 text-slate-700 border border-gray-300 px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-medium">
-            <FolderOpen size={16} />
-            <span>Open Project</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-           <button className="text-sm text-slate-500 hover:text-blue-600 underline decoration-blue-200 underline-offset-4">
-            Manage Solver Queue
-           </button>
-        </div>
-      </div>
-
-      {/* 4. 최근 프로젝트 테이블 */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex-1">
-        <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-          <h3 className="font-bold text-slate-800 flex items-center">
-            <Clock size={18} className="mr-2 text-slate-400" />
-            Recent Projects
-          </h3>
-          <button className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1 rounded transition-colors">
-            View All Projects
-          </button>
-        </div>
+      {/* 2. Key Engineering Stats Row (3 Columns) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
         
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
-                <th className="py-3 px-4 font-semibold w-24">ID</th>
-                <th className="py-3 px-4 font-semibold">Project Name</th>
-                <th className="py-3 px-4 font-semibold">Type</th>
-                <th className="py-3 px-4 font-semibold">Status</th>
-                <th className="py-3 px-4 font-semibold text-right">Last Modified</th>
-                <th className="py-3 px-4 font-semibold text-center w-16">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              <ProjectRow 
-                id="PRJ-004" 
-                name="Wing_Structure_V2_Opt" 
-                type="Static Structural" 
-                status="Solving" 
-                date="Just now" 
-              />
-              <ProjectRow 
-                id="PRJ-003" 
-                name="Landing_Gear_Assembly" 
-                type="Modal Analysis" 
-                status="Completed" 
-                date="2 hours ago" 
-              />
-              <ProjectRow 
-                id="PRJ-002" 
-                name="Fuselage_Section_A" 
-                type="Thermal Transient" 
-                status="Failed" 
-                date="Yesterday" 
-              />
-              <ProjectRow 
-                id="PRJ-001" 
-                name="Bracket_Optimization_Base" 
-                type="Static Structural" 
-                status="Draft" 
-                date="3 days ago" 
-              />
-            </tbody>
-          </table>
+        {/* Stat 1: My Current Job (내 작업 현황 - 단일 작업) */}
+        <EngineeringStatCard 
+          title="My Current Job" 
+          titleKo="내 작업 현황"
+          // Running 상태일 때 애니메이션 효과 추가
+          value={
+            <div className="flex items-center text-blue-600">
+               <span className="relative flex h-3 w-3 mr-2">
+                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                 <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+               </span>
+               Running
+            </div>
+          }
+          subtext="Wing_Structure_V2 (Iter 45)" 
+          icon={Server} 
+          color="bg-blue-500"
+          onClick={() => handleNavigation('/solver/job-manager')}
+        />
+        
+        {/* Stat 2: Server Status (서버 작동 현황) */}
+        <EngineeringStatCard 
+          title="Server Status"
+          titleKo="서버 내 진행 중 해석(건)" 
+          value="8 Jobs" 
+          subtext="Total Active Processes" 
+          icon={Activity} 
+          color="bg-emerald-500"
+          onClick={() => handleNavigation('/solver/monitoring')}
+        />
+
+        {/* Stat 3: Monthly Usage (월간 사용량) */}
+        <EngineeringStatCard 
+          title="Monthly Usage" 
+          titleKo="월간 사용량"
+          value="42 Runs" 
+          subtext="Total Executions" 
+          icon={PlayCircle} 
+          color="bg-indigo-500"
+          onClick={() => handleNavigation('/post-process/reports')}
+        />
+      </div>
+
+      {/* 3. Main Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left: Quick Launch (2/3 width) */}
+        <div className="lg:col-span-2 space-y-4 flex flex-col">
+          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Play size={16} /> Quick Launch
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+            <QuickActionCard 
+              title="Structural" 
+              desc="Static / Transient" 
+              icon={Layers} 
+              color="bg-blue-600" 
+            />
+            <QuickActionCard 
+              title="Thermal" 
+              desc="Heat Transfer" 
+              icon={Thermometer} 
+              color="bg-red-500" 
+            />
+            <QuickActionCard 
+              title="CFD" 
+              desc="Fluid Dynamics" 
+              icon={Wind} 
+              color="bg-cyan-500" 
+            />
+            <QuickActionCard 
+              title="Open Project" 
+              desc="Load .wbpj" 
+              icon={FolderOpen} 
+              color="bg-slate-500" 
+            />
+          </div>
         </div>
-        {/* 테이블 하단 페이징 영역 (예시) */}
-        <div className="p-3 border-t border-gray-100 bg-gray-50 text-right">
-          <span className="text-xs text-gray-400">Showing 4 of 12 projects</span>
+
+        {/* Right: Live Monitor (1/3 width) */}
+        <div className="space-y-4 flex flex-col">
+          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <Activity size={16} /> Solver Status
+          </h2>
+          <div className="flex-1">
+            <SolverStatusCard />
+          </div>
         </div>
       </div>
+
+      {/* 4. Bottom Section: Recent Projects */}
+      <div className="mt-4">
+        <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <Clock size={16} /> Recent Projects
+        </h2>
+        
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-xs uppercase tracking-wider">
+                  <th className="py-3 px-4 font-semibold w-24">ID</th>
+                  <th className="py-3 px-4 font-semibold">Project Name</th>
+                  <th className="py-3 px-4 font-semibold">Type</th>
+                  <th className="py-3 px-4 font-semibold">Status</th>
+                  <th className="py-3 px-4 font-semibold text-right">Modified</th>
+                  <th className="py-3 px-4 font-semibold text-center w-16">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                <ProjectRow id="PRJ-004" name="Wing_Structure_V2_Opt" type="Structural" status="Solving" date="Just now" />
+                <ProjectRow id="PRJ-003" name="Landing_Gear_Assembly" type="Modal" status="Completed" date="2h ago" />
+                <ProjectRow id="PRJ-002" name="Fuselage_Section_A" type="Thermal" status="Failed" date="Yesterday" />
+                <ProjectRow id="PRJ-001" name="Bracket_Optimization" type="Structural" status="Draft" date="3 days ago" />
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }
