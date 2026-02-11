@@ -53,8 +53,8 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
     setErrorMsg('');
 
     try {
-      // [수정] permissions 필드 제거하고 전송
-      await axios.post('${API_BASE_URL}/api/register', formData);
+      // [수정됨] 작은따옴표(') -> 백틱(`)으로 변경
+      await axios.post(`${API_BASE_URL}/api/register`, formData);
       
       setIsSuccess(true);
       
