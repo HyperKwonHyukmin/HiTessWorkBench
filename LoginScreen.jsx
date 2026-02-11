@@ -3,10 +3,10 @@ import { User, ArrowRight, ShieldCheck, AlertCircle, Clock, Wifi, WifiOff, Downl
 import axios from 'axios';
 import logoCI from '../assets/images/HHI_white2_ko.png';
 import RegisterModal from '../components/RegisterModal';
-import { API_BASE_URL } from '../config'; // <--- 이거 추가!
+import { API_BASE_URL } from '../config'; 
 
 // ==========================================
-// [설정] 클라이언트 버전 (서버와 다르면 접속 불가)
+// [설정] 클라이언트 버전
 // ==========================================
 const CLIENT_VERSION = "1.0.0"; 
 const structureBgUrl = "https://images.unsplash.com/photo-1553653841-453082536a9d?q=80&w=1000&auto=format&fit=crop";
@@ -17,25 +17,25 @@ export default function LoginScreen({ onLoginSuccess }) {
   const [errorMsg, setErrorMsg] = useState('');
   
   // 상태 관리
-  const [isServerLive, setIsServerLive] = useState(null); // 서버 연결 상태
-  const [isVersionMismatch, setIsVersionMismatch] = useState(false); // 버전 불일치 여부
-  const [serverVersion, setServerVersion] = useState(''); // 서버에서 받아온 버전
+  const [isServerLive, setIsServerLive] = useState(null); 
+  const [isVersionMismatch, setIsVersionMismatch] = useState(false); 
+  const [serverVersion, setServerVersion] = useState(''); 
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
   // [초기화] 서버 상태 및 버전 체크
   useEffect(() => {
     const initCheck = async () => {
       try {
-        // 1. 서버 버전 가져오기
-        const response = await axios.get('${API_BASE_URL}/api/version');
+        // [수정 포인트 1] 작은따옴표(') 대신 백틱(`) 사용
+        const response = await axios.get(`${API_BASE_URL}/api/version`); // <--- 여기!
+        
         const fetchedServerVersion = response.data.version;
         setServerVersion(fetchedServerVersion);
         setIsServerLive(true);
 
-        // 2. 버전 비교 (문자열 비교)
         if (fetchedServerVersion !== CLIENT_VERSION) {
           console.warn(`Version Mismatch! Client: ${CLIENT_VERSION}, Server: ${fetchedServerVersion}`);
-          setIsVersionMismatch(true); // 차단 활성화
+          setIsVersionMismatch(true); 
         } else {
           setIsVersionMismatch(false);
         }
@@ -48,7 +48,6 @@ export default function LoginScreen({ onLoginSuccess }) {
 
     initCheck();
 
-    // 3. 로컬 스토리지에서 저장된 사번 불러오기
     const savedId = localStorage.getItem('savedEmployeeId');
     if (savedId) setEmployeeId(savedId);
 
@@ -60,16 +59,16 @@ export default function LoginScreen({ onLoginSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (isVersionMismatch) return; // 버전 다르면 아예 함수 종료
+    if (isVersionMismatch) return; 
 
     setIsLoading(true);
     setErrorMsg('');
 
-    // 로그인 시도 시 사번 저장
     localStorage.setItem('savedEmployeeId', employeeId);
 
     try {
-      const response = await axios.post('${API_BASE_URL}/api/login', {
+      // [수정 포인트 2] 작은따옴표(') 대신 백틱(`) 사용
+      const response = await axios.post(`${API_BASE_URL}/api/login`, { // <--- 여기!
         employee_id: employeeId
       });
 
@@ -117,8 +116,6 @@ export default function LoginScreen({ onLoginSuccess }) {
             HiTESS <br/> <span style={{ color: '#00E600' }}>WorkBench</span>
           </h1>
           <div className="h-1.5 w-20 bg-[#008233] mt-8 rounded-full"></div>
-          
-          {/* 버전 표시 */}
           <p className="mt-4 text-xs text-blue-200 opacity-60 font-mono">
             Client v{CLIENT_VERSION}
           </p>
@@ -132,8 +129,6 @@ export default function LoginScreen({ onLoginSuccess }) {
 
       {/* 2. 우측 로그인 폼 */}
       <div className="flex-1 flex flex-col justify-center items-center p-10 bg-white shadow-xl relative z-50">
-        
-        {/* 서버 상태 표시 배지 */}
         <div className="absolute top-6 right-6 transition-all duration-500 ease-in-out">
           {isServerLive === true && !isVersionMismatch && (
             <div className="flex items-center space-x-2 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full shadow-sm animate-fade-in-down">
@@ -153,10 +148,6 @@ export default function LoginScreen({ onLoginSuccess }) {
         </div>
 
         <div className="w-full max-w-sm space-y-8">
-          
-          {/* ---------------------------------------------------------------- */}
-          {/* [CASE 1] 버전 불일치 시: 경고 화면 표시 (로그인 차단) */}
-          {/* ---------------------------------------------------------------- */}
           {isVersionMismatch ? (
             <div className="bg-red-50 border-2 border-red-100 rounded-2xl p-8 text-center shadow-lg animate-pulse-slow">
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 mb-4">
@@ -167,7 +158,6 @@ export default function LoginScreen({ onLoginSuccess }) {
                 클라이언트 버전이 서버와 일치하지 않습니다.<br/>
                 안정적인 서비스를 위해 업데이트가 필요합니다.
               </p>
-              
               <div className="bg-white p-3 rounded-lg border border-red-100 text-xs text-gray-500 mb-6 font-mono">
                 <div className="flex justify-between mb-1">
                   <span>Your Version:</span>
@@ -178,7 +168,6 @@ export default function LoginScreen({ onLoginSuccess }) {
                   <span className="font-bold text-green-600">{serverVersion}</span>
                 </div>
               </div>
-
               <button 
                 className="w-full flex items-center justify-center py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors shadow-md"
                 onClick={() => alert("사내 포털에서 최신 설치 파일을 다운로드 해주세요.")}
@@ -188,9 +177,6 @@ export default function LoginScreen({ onLoginSuccess }) {
               </button>
             </div>
           ) : (
-            /* ---------------------------------------------------------------- */
-            /* [CASE 2] 정상 접속 시: 로그인 폼 표시 */
-            /* ---------------------------------------------------------------- */
             <>
               <div className="text-center lg:text-left">
                 <h2 className="text-3xl font-bold text-slate-800">Hi-TESS Access</h2>
@@ -198,7 +184,6 @@ export default function LoginScreen({ onLoginSuccess }) {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                
                 {errorMsg && (
                   <div className={`p-4 rounded-lg border flex items-start animate-pulse ${
                     errorMsg === "PENDING_APPROVAL" 
