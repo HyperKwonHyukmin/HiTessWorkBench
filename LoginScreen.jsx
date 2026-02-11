@@ -9,7 +9,6 @@ import { API_BASE_URL } from '../config'; // <--- 이거 추가!
 // [설정] 클라이언트 버전 (서버와 다르면 접속 불가)
 // ==========================================
 const CLIENT_VERSION = "1.0.0"; 
-
 const structureBgUrl = "https://images.unsplash.com/photo-1553653841-453082536a9d?q=80&w=1000&auto=format&fit=crop";
 
 export default function LoginScreen({ onLoginSuccess }) {
