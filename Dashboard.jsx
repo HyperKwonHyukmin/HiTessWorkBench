@@ -147,6 +147,13 @@ export default function Dashboard() {
     alert(`이동합니다: ${path}`);
   };
 
+  const projects = [
+    { id: "PRJ-004", name: "Group Unit 권상 해석", type: "Unit", status: "Solving", date: "Just now" },
+    { id: "PRJ-003", name: "Group Unit 권상 해석", type: "Unit", status: "Completed", date: "2h ago" },
+    { id: "PRJ-002", name: "Truss 구조 해석", type: "Truss", status: "Failed", date: "Yesterday" },
+    { id: "PRJ-001", name: "Truss 구조 해석", type: "Truss", status: "Completed", date: "3 days ago" },
+  ];
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10">
       
@@ -182,7 +189,7 @@ export default function Dashboard() {
                Running
             </div>
           }
-          subtext="Wing_Structure_V2 (Iter 45)" 
+          subtext="Group Unit 권상 해석" 
           icon={Server} 
           color="bg-blue-500"
           onClick={() => handleNavigation('/solver/job-manager')}
@@ -225,25 +232,25 @@ export default function Dashboard() {
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <FavoriteCard 
-            title="Structural" 
+            title="Beam" 
             desc="Static / Transient" 
             icon={Layers} 
             color="bg-blue-600" 
           />
           <FavoriteCard 
-            title="Thermal" 
+            title="Truss" 
             desc="Heat Transfer" 
             icon={Thermometer} 
             color="bg-red-500" 
           />
           <FavoriteCard 
-            title="CFD" 
+            title="Module" 
             desc="Fluid Dynamics" 
             icon={Wind} 
             color="bg-cyan-500" 
           />
           <FavoriteCard 
-            title="Open Project" 
+            title="Module" 
             desc="Load .wbpj" 
             icon={FolderOpen} 
             color="bg-slate-500" 
@@ -273,10 +280,16 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                <ProjectRow id="PRJ-004" name="Wing_Structure_V2_Opt" type="Structural" status="Solving" date="Just now" />
-                <ProjectRow id="PRJ-003" name="Landing_Gear_Assembly" type="Modal" status="Completed" date="2h ago" />
-                <ProjectRow id="PRJ-002" name="Fuselage_Section_A" type="Thermal" status="Failed" date="Yesterday" />
-                <ProjectRow id="PRJ-001" name="Bracket_Optimization" type="Structural" status="Draft" date="3 days ago" />
+                {projects.map((project, index) => (
+                  <ProjectRow 
+                    key={index}
+                    id={project.id} 
+                    name={project.name} 
+                    type={project.type} 
+                    status={project.status} 
+                    date={project.date} 
+                  />
+                ))}
               </tbody>
             </table>
           </div>
