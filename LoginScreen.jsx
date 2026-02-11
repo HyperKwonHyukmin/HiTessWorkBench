@@ -3,6 +3,7 @@ import { User, ArrowRight, ShieldCheck, AlertCircle, Clock, Wifi, WifiOff, Downl
 import axios from 'axios';
 import logoCI from '../assets/images/HHI_white2_ko.png';
 import RegisterModal from '../components/RegisterModal';
+import { API_BASE_URL } from '../config'; // <--- 이거 추가!
 
 // ==========================================
 // [설정] 클라이언트 버전 (서버와 다르면 접속 불가)
@@ -27,7 +28,7 @@ export default function LoginScreen({ onLoginSuccess }) {
     const initCheck = async () => {
       try {
         // 1. 서버 버전 가져오기
-        const response = await axios.get('http://127.0.0.1:8000/api/version');
+        const response = await axios.get('${API_BASE_URL}/api/version');
         const fetchedServerVersion = response.data.version;
         setServerVersion(fetchedServerVersion);
         setIsServerLive(true);
@@ -69,7 +70,7 @@ export default function LoginScreen({ onLoginSuccess }) {
     localStorage.setItem('savedEmployeeId', employeeId);
 
     try {
-      const response = await axios.post('http://127.0.0.1:8000/api/login', {
+      const response = await axios.post('${API_BASE_URL}/api/login', {
         employee_id: employeeId
       });
 
