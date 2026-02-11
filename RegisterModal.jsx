@@ -2,6 +2,7 @@ import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition, Listbox } from '@headlessui/react';
 import { X, UserPlus, Building, Briefcase, User, CheckCircle, ChevronDown, Check, ShieldCheck } from 'lucide-react';
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
 // ==========================================
 // 메인 모달 컴포넌트
@@ -11,13 +12,13 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
     employee_id: '',
     name: '',
     company: 'HD 현대중공업',
-    position: '책임 엔지니어',
-    permissions: []
+    position: '책임 엔지니어'
+    // permissions 삭제됨
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   
-  // [추가] 가입 성공 상태 관리 (true면 성공 화면 보여줌)
+  // 가입 성공 상태 관리
   const [isSuccess, setIsSuccess] = useState(false);
 
   // 회사 목록 데이터
@@ -31,7 +32,6 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
       if (initialEmployeeId) {
         setFormData(prev => ({ ...prev, employee_id: initialEmployeeId }));
       }
-      // 모달 열릴 때 상태 초기화
       setIsSuccess(false);
       setErrorMsg('');
       setIsLoading(false);
@@ -53,10 +53,9 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
     setErrorMsg('');
 
     try {
-      // 백엔드 요청
-      await axios.post('http://127.0.0.1:8000/api/register', { ...formData, permissions: [] });
+      // [수정] permissions 필드 제거하고 전송
+      await axios.post('${API_BASE_URL}/api/register', formData);
       
-      // [수정] alert 대신 성공 화면(isSuccess)으로 전환
       setIsSuccess(true);
       
     } catch (error) {
@@ -71,7 +70,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
     }
   };
 
-  // 모달 닫기 핸들러 (성공 상태 초기화 포함)
+  // 모달 닫기 핸들러
   const handleClose = () => {
     setIsSuccess(false);
     onClose();
@@ -108,9 +107,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
             >
               <Dialog.Panel className="w-full max-w-md transform overflow-visible rounded-2xl bg-white text-left align-middle shadow-2xl transition-all border border-gray-100">
                 
-                {/* ------------------------------------------------------- */}
-                {/* [화면 1] 성공 화면 (isSuccess === true) */}
-                {/* ------------------------------------------------------- */}
+                {/* 성공 화면 */}
                 {isSuccess ? (
                   <div className="p-8 text-center">
                     <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-100 mb-6 animate-bounce">
@@ -149,11 +146,8 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
                   </div>
                 ) : (
                 
-                /* ------------------------------------------------------- */
-                /* [화면 2] 기존 입력 폼 (isSuccess === false) */
-                /* ------------------------------------------------------- */
+                /* 입력 폼 화면 */
                 <>
-                  {/* 상단 헤더 */}
                   <div className="bg-gradient-to-r from-[#002554] to-[#003366] p-6 flex justify-between items-center text-white shadow-md rounded-t-2xl">
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-white/10 rounded-full backdrop-blur-sm">
@@ -171,7 +165,6 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
                     </button>
                   </div>
 
-                  {/* 바디 */}
                   <div className="p-8 bg-slate-50/50 rounded-b-2xl">
                     <form onSubmit={handleSubmit} className="space-y-6">
                       
@@ -258,9 +251,7 @@ export default function RegisterModal({ isOpen, onClose, initialEmployeeId }) {
   );
 }
 
-// ==========================================
-// [내부 컴포넌트] Styled Listbox (변경 없음)
-// ==========================================
+// StyledListbox 컴포넌트는 변경 없음
 function StyledListbox({ label, value, onChange, options, icon: Icon, zIndex = "z-10" }) {
   return (
     <div className={`relative ${zIndex}`}>
@@ -276,34 +267,14 @@ function StyledListbox({ label, value, onChange, options, icon: Icon, zIndex = "
               <ChevronDown className="h-4 w-4 text-gray-400 group-hover:text-gray-600 transition-colors" aria-hidden="true" />
             </span>
           </Listbox.Button>
-          
-          <Transition
-            as={Fragment}
-            leave="transition ease-in duration-100"
-            leaveFrom="opacity-100 scale-100"
-            leaveTo="opacity-0 scale-95"
-          >
+          <Transition as={Fragment} leave="transition ease-in duration-100" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
             <Listbox.Options className="absolute mt-2 max-h-60 w-full overflow-auto rounded-xl bg-white py-1 text-base shadow-2xl ring-1 ring-black/10 focus:outline-none sm:text-sm divide-y divide-gray-100 z-[100]">
               {options.map((option, optionIdx) => (
-                <Listbox.Option
-                  key={optionIdx}
-                  className={({ active }) =>
-                    `relative cursor-pointer select-none py-3 pl-10 pr-4 transition-colors ${
-                      active ? 'bg-[#f0fdf4] text-[#008233]' : 'text-slate-900'
-                    }`
-                  }
-                  value={option}
-                >
+                <Listbox.Option key={optionIdx} className={({ active }) => `relative cursor-pointer select-none py-3 pl-10 pr-4 transition-colors ${active ? 'bg-[#f0fdf4] text-[#008233]' : 'text-slate-900'}`} value={option}>
                   {({ selected }) => (
                     <>
-                      <span className={`block truncate ${selected ? 'font-bold' : 'font-normal'}`}>
-                        {option}
-                      </span>
-                      {selected ? (
-                        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-[#008233]">
-                          <Check className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                      ) : null}
+                      <span className={`block truncate ${selected ? 'font-bold' : 'font-normal'}`}>{option}</span>
+                      {selected ? <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-[#008233]"><Check className="h-4 w-4" aria-hidden="true" /></span> : null}
                     </>
                   )}
                 </Listbox.Option>
