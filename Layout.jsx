@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar'; 
 import { LogOut, User, Bell, Search } from 'lucide-react';
 
-export default function Layout({ children, onLogout }) {
+export default function Layout({ children, onLogout, currentMenu, setCurrentMenu }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [userInfo, setUserInfo] = useState({
     name: 'User',
@@ -28,12 +28,16 @@ export default function Layout({ children, onLogout }) {
         isCollapsed={isCollapsed} 
         toggleSidebar={() => setIsCollapsed(!isCollapsed)} 
         isAdmin={userInfo.is_admin} 
+        currentMenu={currentMenu}
+        setCurrentMenu={setCurrentMenu}
       />
 
       <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-10">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-bold text-slate-700 hidden md:block">Workbench</h2>
+          <div className="flex items-center gap-4 window-no-drag">
+            <h2 className="text-lg font-bold text-slate-700 hidden md:block">
+              {currentMenu}
+            </h2>
             <div className="relative hidden lg:block">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
               <input type="text" placeholder="Search..." className="pl-9 pr-4 py-2 bg-slate-100 border-none rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none w-64" />
