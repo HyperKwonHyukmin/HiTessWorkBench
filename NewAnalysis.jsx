@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
-  Box, 
+  Network,      // Truss 구조 해석용 아이콘
+  Ruler,        // 1D Beam 구조 해석용 아이콘
   Layers, 
   Ship, 
   Activity, 
@@ -17,7 +18,7 @@ import {
 const AnalysisCard = ({ title, description, icon: Icon, color, tags, onClick }) => (
   <div 
     onClick={onClick}
-    className="group relative bg-white p-8 rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl hover:border-blue-400 transition-all duration-300 cursor-pointer flex flex-col h-full"
+    className="group relative bg-white p-8 rounded-2xl border border-gray-200 shadow-sm hover:shadow-xl hover:border-blue-400 transition-all duration-300 cursor-pointer flex flex-col h-full animate-fade-in-up"
   >
     {/* 상단 아이콘 영역 */}
     <div className={`w-14 h-14 rounded-xl ${color} bg-opacity-10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
@@ -50,18 +51,87 @@ const AnalysisCard = ({ title, description, icon: Icon, color, tags, onClick }) 
   </div>
 );
 
+// ----------------------------------------------------------------------
+// [Data] 해석 종류별 데이터 정의
+// ----------------------------------------------------------------------
+const ANALYSIS_DATA = [
+  {
+    category: "Truss",
+    title: "Truss 구조 해석",
+    description: "Truss의 Leg Lifting 상황에서 구조 해석을 수행합니다.",
+    icon: Network,
+    color: "bg-blue-600",
+    tags: ["Beam", "Bracket", "Joint"],
+    type: "Component"
+  },
+  {
+    category: "1D Beam",
+    title: "1D Beam 구조 해석",
+    description: "단순 보(Beam) 구조물에 대한 응력 및 처짐을 빠르게 평가합니다.",
+    icon: Ruler,
+    color: "bg-cyan-600",
+    tags: ["1D Element", "Bending", "Shear"],
+    type: "Component"
+  },
+  {
+    category: "권상",
+    title: "Group & Unit 권상 구조 해석",
+    description: "Group 및 Module Unit 권상 시, 구조적 안전성을 검토합니다.",
+    icon: Layers,
+    color: "bg-emerald-600",
+    tags: ["Unit", "Block", "Local Strength"],
+    type: "Block"
+  },
+  {
+    category: "Pipe",
+    title: "Pipe 구조 해석",
+    description: "배관 시스템 구조 해석을 수행합니다.",
+    icon: Activity,
+    color: "bg-indigo-600",
+    tags: ["Pipe", "Foundation", "Vibration"],
+    type: "System"
+  },
+  {
+    category: "Global",
+    title: "Whole Ship Analysis",
+    description: "선박 전체에 대한 전역 강도 및 항해 조건별 응답을 해석합니다.",
+    icon: Ship,
+    color: "bg-slate-800",
+    tags: ["Global", "Hull Girder", "Full Ship"],
+    type: "Global"
+  },
+  {
+    category: "ETC",
+    title: "Optimization",
+    description: "중량 절감 및 구조 효율성 극대화를 위한 최적화 프로세스를 진행합니다.",
+    icon: ShieldCheck,
+    color: "bg-orange-600",
+    tags: ["Weight", "Topology", "Sensitivity"],
+    type: "Optimization"
+  }
+];
+
+// 필터링할 대분류 탭 목록
+const CATEGORIES = ["All", "Truss", "1D Beam", "권상", "Pipe", "Global", "ETC"];
+
 export default function NewAnalysis() {
-  
+  // 현재 선택된 카테고리 상태 관리 (초기값: All)
+  const [activeCategory, setActiveCategory] = useState("All");
+
   const handleStart = (type) => {
-    alert(`${type} 해석 설정을 시작합니다.`);
-    // 추후 세부 설정 페이지로 이동하는 로직 추가
+    alert(`${type} 해석 설정 시작합니다.`);
   };
+
+  // 현재 활성화된 카테고리에 맞춰 데이터 필터링
+  const filteredAnalyses = activeCategory === "All" 
+    ? ANALYSIS_DATA 
+    : ANALYSIS_DATA.filter(item => item.category === activeCategory);
 
   return (
     <div className="max-w-7xl mx-auto pb-16">
       
       {/* 1. Header Section */}
-      <div className="mb-10 text-center md:text-left">
+      <div className="mb-8 text-center md:text-left">
         <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Create New Analysis</h1>
         <p className="text-slate-500 mt-2">수행하고자 하는 해석의 대상과 유형을 선택하십시오.</p>
       </div>
@@ -80,61 +150,46 @@ export default function NewAnalysis() {
         <Compass size={80} className="absolute -right-4 -bottom-4 text-white/10 rotate-12" />
       </div>
 
-      {/* 3. 해석 카테고리 그리드 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        
-        {/* Category 1: Component Level */}
-        <AnalysisCard 
-          title="Truss 구조 해석"
-          description="Truss의 Leg Lifting 상황에서 구조 해석을 수행합니다."
-          icon={Box}
-          color="bg-blue-600"
-          tags={["Beam", "Bracket", "Joint"]}
-          onClick={() => handleStart('Component')}
-        />
-
-        {/* Category 2: Unit & Block Level */}
-        <AnalysisCard 
-          title="Group & Unit 권상 구조 해석"
-          description="Group 및 Module Unit 권상 시, 구조적 안전성을 검토합니다."
-          icon={Layers}
-          color="bg-emerald-600"
-          tags={["Unit", "Block", "Local Strength"]}
-          onClick={() => handleStart('Block')}
-        />
-
-        {/* Category 3: System & Equipment */}
-        <AnalysisCard 
-          title="Pipe 구조 해석"
-          description="배관 시스템 구조 해석을 수행합니다."
-          icon={Activity}
-          color="bg-indigo-600"
-          tags={["Pipe", "Foundation", "Vibration"]}
-          onClick={() => handleStart('System')}
-        />
-
-        {/* Category 4: Global Ship Analysis */}
-        <AnalysisCard 
-          title="Whole Ship Analysis"
-          description="선박 전체에 대한 전역 강도 및 항해 조건별 응답을 해석합니다."
-          icon={Ship}
-          color="bg-slate-800"
-          tags={["Global", "Hull Girder", "Full Ship"]}
-          onClick={() => handleStart('Global')}
-        />
-
-        {/* Category 5: Optimization Task */}
-        <AnalysisCard 
-          title="Optimization"
-          description="중량 절감 및 구조 효율성 극대화를 위한 최적화 프로세스를 진행합니다."
-          icon={ShieldCheck}
-          color="bg-orange-600"
-          tags={["Weight", "Topology", "Sensitivity"]}
-          onClick={() => handleStart('Optimization')}
-        />
+   {/* 3. 카테고리 필터 탭 (대분류) */}
+      <div className="flex flex-wrap items-center gap-2 mb-8 border-b border-gray-200 pb-5">
+        {CATEGORIES.map(category => (
+          <button
+            key={category}
+            onClick={() => setActiveCategory(category)}
+            // [수정] cursor-pointer 클래스 추가
+            className={`cursor-pointer px-6 py-2.5 rounded-md text-sm font-bold tracking-wide transition-all duration-200 ${
+              activeCategory === category
+                ? 'bg-[#002554] text-white shadow-md border border-[#002554]'
+                : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 shadow-sm'
+            }`}
+          >
+            {category}
+          </button>
+        ))}
       </div>
 
-      {/* 4. 도움말 영역 */}
+      {/* 4. 해석 카테고리 그리드 (필터링된 결과 렌더링) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {filteredAnalyses.length > 0 ? (
+          filteredAnalyses.map((item, index) => (
+            <AnalysisCard 
+              key={index}
+              title={item.title}
+              description={item.description}
+              icon={item.icon}
+              color={item.color}
+              tags={item.tags}
+              onClick={() => handleStart(item.type)}
+            />
+          ))
+        ) : (
+          <div className="col-span-full py-12 text-center text-slate-400">
+            <p className="text-lg font-bold text-slate-500">선택된 카테고리의 해석 항목이 없습니다.</p>
+          </div>
+        )}
+      </div>
+
+      {/* 5. 도움말 영역 */}
       <div className="mt-16 bg-slate-100 rounded-2xl p-8 border border-dashed border-slate-300 flex flex-col md:flex-row items-center gap-6">
         <div className="p-4 bg-white rounded-full shadow-sm text-blue-600">
           <Info size={32} />
