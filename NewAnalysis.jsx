@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { 
   Network,      // Truss 구조 해석용 아이콘
   Ruler,        // 1D Beam 구조 해석용 아이콘
+  Combine,
   Layers, 
   Ship, 
   Activity, 
@@ -10,6 +11,7 @@ import {
   Zap,
   ShieldCheck,
   Compass
+
 } from 'lucide-react';
 
 /**
@@ -57,11 +59,11 @@ const AnalysisCard = ({ title, description, icon: Icon, color, tags, onClick }) 
 const ANALYSIS_DATA = [
   {
     category: "Truss",
-    title: "Truss 구조 해석",
-    description: "Truss의 Leg Lifting 상황에서 구조 해석을 수행합니다.",
-    icon: Network,
-    color: "bg-blue-600",
-    tags: ["Beam", "Bracket", "Joint"],
+    title: "Truss Model Builder",
+    description: "Truss 설계 정보를 활용하여 Truss의 구조 해석 모델을 구축합니다.",
+    icon: Layers,
+    color: "bg-cyan-600",
+    tags: ["Truss", "ModelBuilder"],
     type: "Component"
   },
   {
@@ -114,12 +116,17 @@ const ANALYSIS_DATA = [
 // 필터링할 대분류 탭 목록
 const CATEGORIES = ["All", "Truss", "1D Beam", "권상", "Pipe", "Global", "ETC"];
 
-export default function NewAnalysis() {
-  // 현재 선택된 카테고리 상태 관리 (초기값: All)
+export default function NewAnalysis({ setCurrentMenu }) {
   const [activeCategory, setActiveCategory] = useState("All");
 
-  const handleStart = (type) => {
-    alert(`${type} 해석 설정 시작합니다.`);
+  // 매개변수 이름을 'categoryTitle'로 정의합니다.
+  const handleStart = (categoryTitle) => {
+    // Truss 구조 해석 카드를 클릭한 경우
+    if (categoryTitle === "Truss Model Builder") {
+      setCurrentMenu('Truss Analysis');
+    } else {
+      alert(`${categoryTitle} 해석 설정 시작합니다.`);
+    }
   };
 
   // 현재 활성화된 카테고리에 맞춰 데이터 필터링
@@ -170,23 +177,17 @@ export default function NewAnalysis() {
 
       {/* 4. 해석 카테고리 그리드 (필터링된 결과 렌더링) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {filteredAnalyses.length > 0 ? (
-          filteredAnalyses.map((item, index) => (
-            <AnalysisCard 
-              key={index}
-              title={item.title}
-              description={item.description}
-              icon={item.icon}
-              color={item.color}
-              tags={item.tags}
-              onClick={() => handleStart(item.type)}
-            />
-          ))
-        ) : (
-          <div className="col-span-full py-12 text-center text-slate-400">
-            <p className="text-lg font-bold text-slate-500">선택된 카테고리의 해석 항목이 없습니다.</p>
-          </div>
-        )}
+        {filteredAnalyses.map((item, index) => (
+          <AnalysisCard 
+            key={index}
+            title={item.title}
+            description={item.description}
+            icon={item.icon}
+            color={item.color}
+            tags={item.tags}
+            onClick={() => handleStart(item.title)} // <-- item.title 전달로 변경
+          />
+        ))}
       </div>
 
       {/* 5. 도움말 영역 */}
