@@ -166,8 +166,8 @@ export default function TrussAnalysis({ setCurrentMenu }) {
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-2xl font-bold text-[#002554] tracking-tight">Truss Analysis Workspace</h1>
-            <p className="text-sm text-slate-500 mt-1">Node 및 Member CSV 데이터를 기반으로 구조 해석을 실행합니다.</p>
+            <h1 className="text-2xl font-bold text-[#002554] tracking-tight">Truss Model Builder</h1>
+            <p className="text-sm text-slate-500 mt-1">Node 및 Member CSV 데이터를 기반으로 구조 해석 모델을 구축합니다.</p>
           </div>
         </div>
       </div>
@@ -215,7 +215,7 @@ export default function TrussAnalysis({ setCurrentMenu }) {
             }`}
           >
             {isRunning ? <RefreshCw className="animate-spin" size={24} /> : <Play size={24} fill="currentColor" />}
-            {isRunning ? 'Solving...' : 'Run Truss Analysis'}
+            {isRunning ? 'Solving...' : 'Run Truss Model Builder'}
           </button>
         </div>
 
