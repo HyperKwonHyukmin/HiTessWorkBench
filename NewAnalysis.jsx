@@ -48,7 +48,7 @@ const AnalysisCard = ({ title, description, icon: Icon, color, tags, onClick }) 
 
     {/* 화살표 버튼 */}
     <div className="mt-8 flex items-center text-blue-600 font-bold text-sm">
-      Start Setup <ArrowRight size={16} className="ml-2 group-hover:translate-x-2 transition-transform" />
+      Start <ArrowRight size={16} className="ml-2 group-hover:translate-x-2 transition-transform" />
     </div>
   </div>
 );
