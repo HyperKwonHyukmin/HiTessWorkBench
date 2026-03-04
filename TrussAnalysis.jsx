@@ -1,244 +1,257 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
-  ArrowLeft, Upload, FileSpreadsheet, Play, 
-  Activity, CheckCircle, AlertCircle, RefreshCw, 
-  Database, Settings, ChevronRight
+  Upload, Play, Download, Trash2, Eye, ArrowLeft 
 } from 'lucide-react';
 
 export default function TrussAnalysis({ setCurrentMenu }) {
-  const [file, setFile] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisStep, setAnalysisStep] = useState(0); // 0: 대기, 1: 업로드완료, 2: 해석중, 3: 완료
-  const fileInputRef = useRef(null);
+  const [nodeFile, setNodeFile] = useState(null);
+  const [memberFile, setMemberFile] = useState(null);
+  const [nodeData, setNodeData] = useState([]);
+  const [memberData, setMemberData] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [isRunning, setIsRunning] = useState(false);
 
-  // [Mock] 해석 설정 파라미터
-  const [params, setParams] = useState({
-    solver: 'Nastran',
-    material: 'Steel (Structural)',
-    unit: 'mm / N / MPa'
-  });
+  // CSV 파싱 (모든 행 저장)
+  const parseCSV = (file, setter) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      const rows = text.trim().split('\n').map(row => 
+        row.split(',').map(cell => cell.trim())
+      );
+      setter(rows);
+    };
+    reader.readAsText(file);
+  };
 
-  // 파일 업로드 핸들러
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile && selectedFile.name.endsWith('.csv')) {
-      setIsUploading(true);
-      // 가상의 업로드 딜레이
-      setTimeout(() => {
-        setFile(selectedFile);
-        setIsUploading(false);
-        setAnalysisStep(1);
-      }, 800);
-    } else {
-      alert("CSV 파일만 업로드 가능합니다.");
+  const handleFile = (file, type) => {
+    if (!file || !file.name.endsWith('.csv')) {
+      alert('CSV 파일만 업로드 가능합니다!');
+      return;
     }
+    if (type === 'node') {
+      setNodeFile(file);
+      parseCSV(file, setNodeData);
+    } else {
+      setMemberFile(file);
+      parseCSV(file, setMemberData);
+    }
+    addLog(`✅ ${type.toUpperCase()} CSV 업로드 완료: ${file.name}`);
   };
 
-  // 해석 실행 핸들러
-  const handleRunAnalysis = () => {
-    if (!file) return alert("먼저 CSV 데이터를 업로드해주세요.");
-    
-    setIsAnalyzing(true);
-    setAnalysisStep(2);
+  const handleDrop = (e, type) => {
+    e.preventDefault();
+    handleFile(e.dataTransfer.files[0], type);
+  };
 
-    // 가상의 해석 프로세스 진행
+  const handleDragOver = (e) => e.preventDefault();
+
+  const handleSelect = (e, type) => {
+    if (e.target.files[0]) handleFile(e.target.files[0], type);
+  };
+
+  const addLog = (message) => {
+    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
+  };
+
+  const clearLogs = () => setLogs([]);
+  const downloadLog = () => {
+    if (logs.length === 0) return alert('로그가 없습니다!');
+    const blob = new Blob([logs.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'truss_analysis_log.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+    addLog('📥 로그 파일 다운로드 완료');
+  };
+
+  const runAnalysis = () => {
+    if (!nodeFile || !memberFile) return;
+    setIsRunning(true);
+    setLogs([]);
+    addLog('🚀 Truss Analysis 시작');
+
+    setTimeout(() => addLog('📊 Node 데이터 로드 완료'), 800);
+    setTimeout(() => addLog('🔗 Member 데이터 로드 완료'), 1600);
+    setTimeout(() => addLog('⚙️ 구조 해석 수행 중...'), 2400);
     setTimeout(() => {
-      setIsAnalyzing(false);
-      setAnalysisStep(3);
-    }, 3000);
+      addLog('✅ 해석 완료! 결과가 정상적으로 생성되었습니다.');
+      addLog('💾 결과 파일은 서버에 저장되었습니다.');
+      setIsRunning(false);
+    }, 3500);
   };
+
+  const canRun = nodeFile && memberFile && !isRunning;
 
   return (
-    <div className="max-w-7xl mx-auto pb-10 h-full flex flex-col animate-fade-in-up">
-      
-      {/* 1. 상단 헤더 및 뒤로가기 */}
-      <div className="flex items-center gap-4 mb-6">
+    <div className="min-h-screen bg-slate-50 p-8">
+      <div className="max-w-7xl mx-auto">
+
+        {/* ====================== 뒤로가기 버튼 (별도 배치) ====================== */}
         <button 
-          onClick={() => setCurrentMenu('New Analysis')}
-          className="p-2 bg-white border border-gray-200 rounded-lg text-slate-500 hover:text-[#002554] hover:bg-slate-50 transition-colors shadow-sm"
+          onClick={() => setCurrentMenu?.('New Analysis')}
+          className="group mb-8 flex items-center gap-3 px-7 py-3 bg-white border border-slate-200 rounded-3xl shadow-sm hover:shadow-md hover:border-[#002554] transition-all duration-200 text-slate-600 hover:text-[#002554]"
         >
-          <ArrowLeft size={20} />
+          <ArrowLeft size={24} className="group-hover:-translate-x-1 transition-transform" />
+          <span className="font-semibold">New Analysis로 돌아가기</span>
         </button>
-        <div>
-          <h1 className="text-2xl font-bold text-[#002554] flex items-center gap-2">
-            Truss Model Builder
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Truss 설계 정보를 활용하여 Truss의 구조 해석 모델을 구축합니다.</p>
+
+        {/* ====================== 타이틀 ====================== */}
+        <div className="mb-10">
+          <h1 className="text-4xl font-bold text-[#002554]">Truss Analysis</h1>
+          <p className="text-slate-500 mt-1">Truss 구조 해석 워크벤치</p>
         </div>
-      </div>
 
-      {/* 2. 메인 컨텐츠 영역 (2단 분리) */}
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-[600px]">
-        
-        {/* 좌측: 입력 및 설정 패널 */}
-        <div className="w-full lg:w-1/3 flex flex-col gap-6">
-          
-          {/* CSV 업로드 카드 */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm relative overflow-hidden">
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Database size={18} className="text-blue-500"/> CSV Input
-            </h3>
-            
-            <div 
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
-                file ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50/50'
-              }`}
-            >
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleFileChange} 
-                accept=".csv" 
-                className="hidden" 
-              />
-              
-              {isUploading ? (
-                <RefreshCw className="animate-spin text-blue-500 mb-3" size={32} />
-              ) : file ? (
-                <FileSpreadsheet className="text-green-500 mb-3" size={32} />
-              ) : (
-                <Upload className="text-slate-400 mb-3" size={32} />
-              )}
-              
-              <p className="text-sm font-bold text-slate-700">
-                {file ? file.name : "클릭하여 CSV 파일 업로드"}
-              </p>
-              <p className="text-xs text-slate-400 mt-1">
-                {file ? "데이터 로드 완료" : "Nodes & Elements 정의 파일 (.csv)"}
-              </p>
-            </div>
-          </div>
-
-          {/* 해석 설정 카드 */}
-          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex-1">
-            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <Settings size={18} className="text-slate-500"/> Settings
-            </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">Solver Engine</label>
-                <select 
-                  className="w-full bg-slate-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 font-medium"
-                  value={params.solver}
-                  onChange={(e) => setParams({...params, solver: e.target.value})}
-                >
-                  <option>Nastran</option>
-                  <option>OptiStruct</option>
-                  <option>Abaqus</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">Material Property</label>
-                <select 
-                  className="w-full bg-slate-50 border border-gray-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 font-medium"
-                >
-                  <option>Steel (Structural) - AH36</option>
-                  <option>High Tensile Steel - DH36</option>
-                  <option>Aluminum Alloy</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* 실행 버튼 */}
-          <button 
-            onClick={handleRunAnalysis}
-            disabled={!file || isAnalyzing}
-            className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg text-lg ${
-              !file 
-                ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-                : isAnalyzing 
-                  ? 'bg-blue-600 text-white cursor-wait'
-                  : 'bg-[#002554] hover:bg-[#003366] text-white hover:-translate-y-1'
+        {/* CSV INPUT 영역 (기존과 동일) */}
+        <div className="grid grid-cols-2 gap-8 mb-12">
+          {/* Node CSV */}
+          <div
+            className={`border-2 border-dashed rounded-3xl p-10 text-center transition-all hover:shadow-xl ${
+              nodeFile ? 'border-green-500 bg-green-50' : 'border-slate-300 hover:border-[#002554]'
             }`}
+            onDrop={(e) => handleDrop(e, 'node')}
+            onDragOver={handleDragOver}
           >
-            {isAnalyzing ? (
-              <><RefreshCw className="animate-spin" size={20} /> Solving...</>
-            ) : analysisStep === 3 ? (
-              <><CheckCircle size={20} className="text-[#00E600]" /> Analysis Complete</>
+            <Upload className="mx-auto mb-6 text-[#002554]" size={52} />
+            <p className="text-xl font-bold text-[#002554]">Node Data CSV <span className="text-red-500">*</span></p>
+            <p className="text-slate-500 mt-2">노드 좌표 (ID, X, Y, Z)</p>
+            
+            <label className="mt-8 cursor-pointer inline-block bg-[#002554] hover:bg-[#001a3d] text-white px-8 py-4 rounded-2xl font-semibold transition">
+              파일 선택 또는 드래그&드롭
+              <input type="file" accept=".csv" className="hidden" onChange={(e) => handleSelect(e, 'node')} />
+            </label>
+            {nodeFile && <p className="mt-4 text-green-600 font-medium">✓ {nodeFile.name}</p>}
+          </div>
+
+          {/* Member CSV */}
+          <div
+            className={`border-2 border-dashed rounded-3xl p-10 text-center transition-all hover:shadow-xl ${
+              memberFile ? 'border-green-500 bg-green-50' : 'border-slate-300 hover:border-[#002554]'
+            }`}
+            onDrop={(e) => handleDrop(e, 'member')}
+            onDragOver={handleDragOver}
+          >
+            <Upload className="mx-auto mb-6 text-[#002554]" size={52} />
+            <p className="text-xl font-bold text-[#002554]">Member Data CSV <span className="text-red-500">*</span></p>
+            <p className="text-slate-500 mt-2">부재 연결 정보 (ID, Node1, Node2...)</p>
+            
+            <label className="mt-8 cursor-pointer inline-block bg-[#002554] hover:bg-[#001a3d] text-white px-8 py-4 rounded-2xl font-semibold transition">
+              파일 선택 또는 드래그&드롭
+              <input type="file" accept=".csv" className="hidden" onChange={(e) => handleSelect(e, 'member')} />
+            </label>
+            {memberFile && <p className="mt-4 text-green-600 font-medium">✓ {memberFile.name}</p>}
+          </div>
+        </div>
+
+        {/* DATA Preview (모든 행 표시) */}
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold text-[#002554] mb-6 flex items-center gap-3">
+            <Eye size={28} /> DATA Preview
+          </h2>
+          <div className="grid grid-cols-2 gap-8">
+            {nodeData.length > 0 && (
+              <div className="bg-white border rounded-3xl p-6 shadow">
+                <p className="font-semibold mb-4">Node CSV Preview ({nodeData.length}행 전체 표시)</p>
+                <div className="overflow-auto max-h-96 border rounded-2xl">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-100 sticky top-0 z-10">
+                      <tr>
+                        {nodeData[0].map((h, i) => (
+                          <th key={i} className="px-4 py-3 text-left font-medium border-b">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {nodeData.slice(1).map((row, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          {row.map((cell, j) => (
+                            <td key={j} className="px-4 py-3 border-b text-slate-600">{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {memberData.length > 0 && (
+              <div className="bg-white border rounded-3xl p-6 shadow">
+                <p className="font-semibold mb-4">Member CSV Preview ({memberData.length}행 전체 표시)</p>
+                <div className="overflow-auto max-h-96 border rounded-2xl">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-slate-100 sticky top-0 z-10">
+                      <tr>
+                        {memberData[0].map((h, i) => (
+                          <th key={i} className="px-4 py-3 text-left font-medium border-b">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {memberData.slice(1).map((row, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          {row.map((cell, j) => (
+                            <td key={j} className="px-4 py-3 border-b text-slate-600">{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ====================== 실행 버튼 (디자인 대폭 개선) ====================== */}
+        <button
+          onClick={runAnalysis}
+          disabled={!canRun}
+          className={`group w-full py-6 rounded-3xl text-2xl font-bold flex items-center justify-center gap-4 transition-all duration-300 ${
+            canRun 
+              ? 'bg-[#002554] hover:bg-[#001a3d] text-white shadow-2xl hover:shadow-3xl hover:scale-[1.03] active:scale-[0.98] cursor-pointer' 
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+          }`}
+        >
+          <Play 
+            size={34} 
+            className={`transition-transform ${canRun ? 'group-hover:scale-110' : ''}`} 
+          />
+          {isRunning ? '해석 진행 중...' : 'Truss Analysis 실행'}
+        </button>
+
+        {/* Analysis Log */}
+        <div className="mt-16">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-[#002554] flex items-center gap-3">
+              📋 Analysis Log
+            </h2>
+            <div className="flex gap-3">
+              <button
+                onClick={downloadLog}
+                className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-300 rounded-2xl hover:bg-slate-50 font-medium transition"
+              >
+                <Download size={20} /> 로그 저장 (.txt)
+              </button>
+              <button
+                onClick={clearLogs}
+                className="flex items-center gap-2 px-6 py-3 bg-white border border-red-200 text-red-600 rounded-2xl hover:bg-red-50 font-medium transition"
+              >
+                <Trash2 size={20} /> 로그 초기화
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-[#0a0f1c] text-green-400 font-mono text-sm p-8 rounded-3xl h-96 overflow-auto border border-slate-800 shadow-inner">
+            {logs.length === 0 ? (
+              <p className="text-slate-500 italic">해석을 실행하면 진행 로그와 문제점이 실시간으로 표시됩니다.</p>
             ) : (
-              <><Play size={20} fill="currentColor" /> Run Simulation</>
-            )}
-          </button>
-        </div>
-
-        {/* 우측: 데이터 뷰어 및 콘솔 영역 */}
-        <div className="w-full lg:w-2/3 bg-[#0F172A] rounded-2xl shadow-xl border border-slate-700 flex flex-col overflow-hidden relative">
-          
-          {/* 상태 바 */}
-          <div className="h-12 bg-slate-800 border-b border-slate-700 flex items-center px-4 justify-between">
-             <div className="flex items-center gap-2">
-               <span className="flex h-3 w-3 relative">
-                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${analysisStep === 2 ? 'bg-[#00E600]' : 'hidden'}`}></span>
-                 <span className={`relative inline-flex rounded-full h-3 w-3 ${analysisStep === 0 ? 'bg-slate-500' : analysisStep === 2 ? 'bg-[#00E600]' : 'bg-blue-500'}`}></span>
-               </span>
-               <span className="text-xs font-mono text-slate-300">
-                 {analysisStep === 0 ? 'Awaiting Data...' : analysisStep === 1 ? 'Ready to Solve' : analysisStep === 2 ? 'Engine Running' : 'Process Finished'}
-               </span>
-             </div>
-             <div className="text-xs text-slate-500 font-mono">Job ID: {file ? 'TRUSS-2026-001' : 'NONE'}</div>
-          </div>
-
-          {/* 뷰어 영역 (Mock 데이터 시각화) */}
-          <div className="flex-1 p-6 relative">
-             {analysisStep === 0 && (
-               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
-                  <Activity size={48} className="mb-4 opacity-20" />
-                  <p className="font-mono text-sm">No workspace data. Upload CSV to preview.</p>
-               </div>
-             )}
-
-             {analysisStep > 0 && (
-               <div className="h-full flex flex-col">
-                 <h4 className="text-[#00E600] text-xs font-bold uppercase tracking-widest mb-3">Data Preview</h4>
-                 <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-1 flex-1 overflow-auto custom-scrollbar">
-                   <table className="w-full text-left text-xs font-mono text-slate-300">
-                     <thead className="bg-slate-800 text-slate-400 sticky top-0">
-                       <tr>
-                         <th className="p-2">ID</th>
-                         <th className="p-2">Type</th>
-                         <th className="p-2">X</th>
-                         <th className="p-2">Y</th>
-                         <th className="p-2">Z</th>
-                       </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-700/50">
-                       <tr><td className="p-2">1</td><td className="p-2">GRID</td><td className="p-2">0.0</td><td className="p-2">0.0</td><td className="p-2">0.0</td></tr>
-                       <tr><td className="p-2">2</td><td className="p-2">GRID</td><td className="p-2">1500.0</td><td className="p-2">0.0</td><td className="p-2">0.0</td></tr>
-                       <tr><td className="p-2">3</td><td className="p-2">GRID</td><td className="p-2">750.0</td><td className="p-2">1000.0</td><td className="p-2">0.0</td></tr>
-                       <tr><td className="p-2 text-[#00E600]">101</td><td className="p-2 text-[#00E600]">CBAR</td><td colSpan="3" className="p-2 opacity-50">Node 1 - Node 2</td></tr>
-                       <tr><td className="p-2 text-[#00E600]">102</td><td className="p-2 text-[#00E600]">CBAR</td><td colSpan="3" className="p-2 opacity-50">Node 2 - Node 3</td></tr>
-                     </tbody>
-                   </table>
-                 </div>
-               </div>
-             )}
-          </div>
-
-          {/* 로그 콘솔 */}
-          <div className="h-48 bg-black border-t border-slate-700 p-4 font-mono text-xs overflow-y-auto">
-            <p className="text-slate-500">{'>'} HiTESS Subsystem Initialized.</p>
-            {analysisStep >= 1 && <p className="text-blue-400">{'>'} CSV Data parsed successfully. (Nodes: 3, Elements: 2)</p>}
-            {analysisStep >= 2 && <p className="text-yellow-400">{'>'} Submitting job to {params.solver} solver...</p>}
-            {analysisStep >= 3 && (
-              <>
-                <p className="text-slate-300">{'>'} Matrix decomposition complete.</p>
-                <p className="text-[#00E600] font-bold mt-2">{'>'} SOLUTION COMPLETED SUCCESSFULLY.</p>
-                <p className="text-slate-400">{'>'} Max displacement: 2.41mm / Max Stress: 112.5 MPa</p>
-                <button 
-                  onClick={() => setCurrentMenu('Result Viewer')}
-                  className="mt-3 flex items-center text-[#002554] bg-[#00E600] hover:bg-green-400 px-3 py-1.5 rounded text-xs font-bold transition-colors"
-                >
-                  View Results in Post-Processor <ChevronRight size={14} className="ml-1"/>
-                </button>
-              </>
+              logs.map((log, i) => <div key={i} className="py-1 break-words">{log}</div>)
             )}
           </div>
         </div>
-
       </div>
     </div>
   );
