@@ -40,7 +40,7 @@ def check_version():
 # 2. 헬스 체크 API
 @app.get("/")
 def health_check():
-  return {"status": "ok", "message": "HiTESS Server is running"}
+  return {"status": "ok", "message": "kwonhyukmin"}
 
 
 # 3. 로그인 API
@@ -108,9 +108,7 @@ def delete_user(user_id: int, db: Session = Depends(database.get_db)):
     db.commit()
     return {"message": "User deleted"}
 
-# ==========================================
-# [신규 추가] 해석 실행 및 DB 기록 API
-# ==========================================
+
 @app.post("/api/analysis/trussmodelbuilder")
 async def run_truss_model_builder(
         node_file: UploadFile = File(...),
@@ -118,80 +116,86 @@ async def run_truss_model_builder(
         employee_id: str = Form(...),
         db: Session = Depends(database.get_db)
 ):
-  # 1. 경로 설정 (main.py의 현재 폴더와 부모 폴더 계산)
-  current_dir = os.path.dirname(os.path.abspath(__file__))
-  parent_dir = os.path.dirname(current_dir)  # main.py의 부모 폴더
+  # 1. 경로 설정 (main.py 위치 기준 부모 폴더 계산)
+  base_dir = os.path.dirname(os.path.abspath(__file__))
+  parent_dir = os.path.dirname(base_dir)
 
-  # 2. 사용자별 고유 작업 폴더 생성 (userConnection 폴더 내부)
-  # 폴더명 포맷: 사번_연월일_시분초 (예: A123456_20260305_143000)
+  # 2. 사용자별 고유 작업 폴더 생성 (userConnection/사번_시간)
   timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-  unique_folder_name = f"{employee_id}_{timestamp}"
-  work_dir_abs = os.path.join(parent_dir, "userConnection", unique_folder_name)
+  unique_folder = f"{employee_id}_{timestamp}"
+  work_dir = os.path.abspath(os.path.join(parent_dir, "userConnection", unique_folder))
+  os.makedirs(work_dir, exist_ok=True)
 
-  os.makedirs(work_dir_abs, exist_ok=True)
+  # 3. 파일 저장 절대 경로 설정
+  node_path = os.path.join(work_dir, node_file.filename)
+  member_path = os.path.join(work_dir, member_file.filename)
 
-  # 파일이 저장될 절대 경로
-  node_path_abs = os.path.join(work_dir_abs, node_file.filename)
-  member_path_abs = os.path.join(work_dir_abs, member_file.filename)
+  # 결과 BDF 파일명 생성 (Node 파일명 기준)
+  bdf_filename = os.path.splitext(node_file.filename)[0] + ".bdf"
+  result_bdf_path = os.path.join(work_dir, bdf_filename)
 
-  # 💡 [주의] EXE가 뱉어내는 실제 BDF 파일 이름으로 맞춰주세요. (예: result.bdf)
-  resultBdfName = node_file.filename.split(".")[0] + ".bdf"
-  result_bdf_path_abs = os.path.join(work_dir_abs, resultBdfName)
+  # 4. 클라이언트가 보낸 CSV 파일 실제 저장
+  try:
+    with open(node_path, "wb") as buffer:
+      buffer.write(await node_file.read())
+    with open(member_path, "wb") as buffer:
+      buffer.write(await member_file.read())
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f"File save error: {str(e)}")
 
-  # 3. 클라이언트가 보낸 CSV 파일 저장
-  with open(node_path_abs, "wb") as f:
-    f.write(await node_file.read())
-  with open(member_path_abs, "wb") as f:
-    f.write(await member_file.read())
+  # 5. EXE 프로그램 경로 및 데이터 구조화
+  exe_dir = os.path.abspath(os.path.join(parent_dir, "InHouseProgram", "TrussModelBuilder"))
+  exe_path = os.path.join(exe_dir, "TrussModelBuilder.exe")
 
-  # 4. EXE 프로그램 경로 및 실행
-  exe_dir_abs = os.path.join(parent_dir, "InHouseProgram", "TrussModelBuilder")
-  exe_path_abs = os.path.join(exe_dir_abs, "TrussModelBuilder.exe")
+  # JSON 컬럼에 넣을 데이터 딕셔너리
+  input_data = {
+    "node_csv": node_path,
+    "member_csv": member_path
+  }
+  result_data = {}
 
   status_msg = "Success"
   engine_output = ""
 
+  # 6. 프로그램 실행 로직
+  if not os.path.exists(exe_path):
+    status_msg = "Failed"
+    engine_output = f"Executable not found: {exe_path}"
+  else:
+    cmd_args = [exe_path, exe_dir, node_path, member_path]
+    try:
+      result = subprocess.run(cmd_args, capture_output=True, text=True, check=True)
+      engine_output = result.stdout
+
+      # 성공 시 결과 파일 경로를 result_info 딕셔너리에 추가
+      result_data = {"bdf": result_bdf_path}
+
+    except subprocess.CalledProcessError as e:
+      status_msg = "Failed"
+      engine_output = e.stderr if e.stderr else e.stdout
+    except Exception as e:
+      status_msg = "Failed"
+      engine_output = f"System Error: {str(e)}"
+
+  # 7. DB 기록 (요청하신 열 규격에 맞춤)
   try:
-    # 5. 요구하신 cmd 명령어 구조 조립
-    # "TrussModelBuilder.exe(절대경로)" "exe가 존재하는 폴더위치" "Node.csv 절대위치" "Member.csv 절대위치"
-    cmd_args = [
-      exe_path_abs,  # 1. exe 절대경로
-      exe_dir_abs,  # 2. exe가 존재하는 폴더위치
-      node_path_abs,  # 3. Node.csv 절대위치
-      member_path_abs  # 4. Member.csv 절대위치
-    ]
-
-    # 외부 프로그램 실행
-    result = subprocess.run(
-      cmd_args,
-      capture_output=True,
-      text=True,
-      check=True
+    # 모델명 models.py에 정의하신 클래스명(예: Analysis 또는 AnalysisLog)으로 맞춰주세요.
+    new_analysis = models.Analysis(
+      project_name=f"Truss_Job_{timestamp}",  # 임시 프로젝트명
+      program_name="TrussModelBuilder",
+      employee_id=employee_id,
+      status=status_msg,
+      input_info=input_data,  # 딕셔너리가 JSON으로 자동 변환되어 저장됨
+      result_info=result_data if status_msg == "Success" else None
     )
-    engine_output = result.stdout
+    db.add(new_analysis)
+    db.commit()
+  except Exception as db_e:
+    print(f"DB 기록 오류: {str(db_e)}")
 
-  except subprocess.CalledProcessError as e:
-    status_msg = "Failed"
-    engine_output = e.stderr if e.stderr else e.stdout
-  except Exception as e:
-    status_msg = "Failed"
-    engine_output = f"Execution Error: {str(e)}\n경로를 확인하세요: {exe_path_abs}"
-
-  # 6. DB에 절대 경로 및 이력 저장
-  new_log = models.AnalysisLog(
-    program_name="TrussModelBuilder",
-    employee_id=employee_id,
-    status=status_msg,
-    node_file_path=node_path_abs,
-    member_file_path=member_path_abs,
-    result_bdf_path=result_bdf_path_abs if status_msg == "Success" else None
-  )
-  db.add(new_log)
-  db.commit()
-
-  # 7. 클라이언트 응답 (향후 다운로드 시 이 bdf_path를 사용)
+  # 8. 최종 응답 반환
   return {
     "status": status_msg,
     "engine_log": engine_output,
-    "bdf_path": result_bdf_path_abs if status_msg == "Success" else None
+    "bdf_path": result_bdf_path if status_msg == "Success" else None
   }
