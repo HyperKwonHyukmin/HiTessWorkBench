@@ -1,6 +1,6 @@
+import React, { useState, useRef, useEffect, Fragment } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
-import React, { useState, useRef, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { 
   ArrowLeft, Upload, Play, Download, Trash2, Database,
@@ -28,10 +28,12 @@ export default function TrussAnalysis({ setCurrentMenu }) {
   const numMembers = memberData.length > 1 ? memberData.length - 1 : 0;
   const isDataReady = numNodes > 0 && numMembers > 0;
 
+  // 로그가 추가될 때 자동 스크롤
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
 
+  // CSV 파싱 로직
   const parseCSV = (file, setter, type) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -41,11 +43,7 @@ export default function TrussAnalysis({ setCurrentMenu }) {
         .map(row => row.split(',').map(cell => cell.trim()));
       setter(rows);
       addLog(`[DATA] ${type.toUpperCase()} 데이터 로드 완료 (${rows.length - 1}행)`, 'info');
-      
-      // 상세 로그에 백그라운드 작업 내역 추가 (가상)
-      addDetailedLog(`READING CSV FILE: ${file.name}`);
-      addDetailedLog(`PARSING ${rows.length - 1} DATA ENTRIES... OK`);
-      addDetailedLog(`CHECKING DATA INTEGRITY... NO NULL VALUES FOUND.`);
+      addDetailedLog(`PARSING ${file.name} ... OK (${rows.length - 1} Entries)`);
     };
     reader.readAsText(file);
   };
@@ -70,13 +68,12 @@ export default function TrussAnalysis({ setCurrentMenu }) {
     handleFile(e.dataTransfer.files[0], type);
   };
 
-  // System Console용 요약 로그 추가
+  // 로깅 함수
   const addLog = (message, type = 'info') => {
     const time = new Date().toLocaleTimeString();
     setLogs(prev => [...prev, { time, message, type }]);
   };
 
-  // 상세 분석용 Raw 로그 추가
   const addDetailedLog = (message) => {
     const time = new Date().toISOString();
     setDetailedLogs(prev => [...prev, `[${time}] ${message}`]);
@@ -87,6 +84,78 @@ export default function TrussAnalysis({ setCurrentMenu }) {
     setDetailedLogs([]);
   };
 
+  // ------------------------------------------------------------------------
+  // ✅ [핵심] 실제 서버 API 호 로직 (main.py 연동)
+  // ------------------------------------------------------------------------
+  const runAnalysis = async () => {
+    if (!nodeFile || !memberFile) return;
+    setIsRunning(true);
+    setLogs([]);
+    setDetailedLogs([]); 
+    
+    addLog('System Check OK. Preparing Truss Model Builder...', 'info');
+    
+    // 로컬 스토리지에서 현재 로그인한 유저 정보(사번) 가져오기
+    const userStr = localStorage.getItem('user');
+    const employeeId = userStr ? JSON.parse(userStr).employee_id : 'guest';
+
+    // multipart/form-data 데이터 세팅
+    const formData = new FormData();
+    formData.append('node_file', nodeFile);
+    formData.append('member_file', memberFile);
+    formData.append('employee_id', employeeId);
+
+    try {
+      addLog('Uploading CSV files to server...', 'warning');
+      addDetailedLog(`Uploading ${nodeFile.name} and ${memberFile.name}...`);
+      
+      // FastAPI 서버 전송 (경로 정확히 일치시킴)
+      const response = await axios.post(`${API_BASE_URL}/api/analysis/trussmodelbuilder`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      // 성공/실패 분기 처리
+      if (response.data.status === "Success") {
+        addLog('MODEL BUILDING COMPLETED SUCCESSFULLY.', 'success');
+        
+        // bdf 파일 경로에서 파일명만 추출해서 요약 로그에 표시
+        const bdfFileName = response.data.bdf_path ? response.data.bdf_path.split('\\').pop().split('/').pop() : 'result.bdf';
+        addLog(`BDF 생성 완료: ${bdfFileName}`, 'success');
+        addLog('결과가 DB에 기록되었습니다.', 'info');
+        
+        // 상세 로그 (모달용)
+        addDetailedLog('*** HITESS WORKBENCH SOLVER OUTPUT ***');
+        addDetailedLog(response.data.engine_log);
+        addDetailedLog(`[RESULT BDF PATH]: ${response.data.bdf_path}`);
+        addDetailedLog('*** SOLVER FINISHED NORMALLY ***');
+      } else {
+        // 서버 응답은 200 OK 였지만, 내부 EXE 실행에서 Failed가 뜬 경우
+        addLog('ENGINE EXECUTION FAILED.', 'error');
+        addDetailedLog('*** ENGINE EXECUTION ERROR ***');
+        addDetailedLog(response.data.engine_log);
+      }
+
+    } catch (error) {
+      // 서버가 꺼져있거나 통신 자체에 에러가 발생한 경우 (404, 500 등)
+      addLog('SERVER COMMUNICATION FAILED.', 'error');
+      
+      if (error.response) {
+        addDetailedLog(`SERVER ERROR [${error.response.status}]: ${JSON.stringify(error.response.data)}`);
+      } else {
+        addDetailedLog(`NETWORK ERROR: ${error.message}`);
+      }
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const canRun = nodeFile && memberFile && !isRunning;
+
+  // ------------------------------------------------------------------------
+  // 다운로드 유틸
+  // ------------------------------------------------------------------------
   const downloadSummaryLog = () => {
     if (logs.length === 0) return alert('다운로드할 로그가 없습니다.');
     const logText = logs.map(l => `[${l.time}] ${l.message}`).join('\n');
@@ -108,69 +177,6 @@ export default function TrussAnalysis({ setCurrentMenu }) {
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  const runAnalysis = async () => {
-    if (!nodeFile || !memberFile) return;
-    setIsRunning(true);
-    setLogs([]);
-    setDetailedLogs([]); 
-    
-    addLog('System Check OK. Preparing Truss Analysis Job...', 'info');
-    
-    // 로컬 스토리지에서 현재 로그인한 유저 정보(사번) 가져오기
-    const userStr = localStorage.getItem('user');
-    const employeeId = userStr ? JSON.parse(userStr).employee_id : 'guest';
-
-    // multipart/form-data 생성을 위해 FormData 객체 사용
-    const formData = new FormData();
-    formData.append('node_file', nodeFile);
-    formData.append('member_file', memberFile);
-    formData.append('employee_id', employeeId);
-
-    try {
-      addLog('Uploading CSV files to server...', 'warning');
-      addDetailedLog(`Uploading ${nodeFile.name} and ${memberFile.name}...`);
-      
-      // FastAPI 서버로 POST 요청
-      const response = await axios.post(`${API_BASE_URL}/api/analysis/trussmodelbuilder`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-     // 성공 시 처리
-      if (response.data.status === "Success") {
-        addLog('ANALYSIS COMPLETED SUCCESSFULLY.', 'success');
-        addLog('결과가 DB에 기록되었습니다.', 'info');
-        
-        // 서버에서 보내준 exe의 실제 콘솔 로그를 상세 모달에 반영
-        addDetailedLog('*** HITESS WORKBENCH SOLVER OUTPUT ***');
-        addDetailedLog(response.data.engine_log);
-        addDetailedLog(`[RESULT BDF PATH]: ${response.data.bdf_path}`);
-        addDetailedLog('*** SOLVER FINISHED NORMALLY ***');
-      } else {
-        // 백엔드에서 Exception 캐치 후 status를 "Failed"로 보낸 경우
-        addLog('ANALYSIS FAILED.', 'error');
-        addDetailedLog('*** ENGINE EXECUTION ERROR ***');
-        addDetailedLog(response.data.engine_log);
-      }
-
-    } catch (error) {
-      // 에러 발생 시 처리
-      addLog('ANALYSIS FAILED.', 'error');
-      
-      if (error.response) {
-        // 서버에서 던진 상세 에러(HTTP 404, 500 등)
-        addDetailedLog(`ERROR: ${error.response.data.detail || error.response.statusText}`);
-      } else {
-        addDetailedLog(`ERROR: ${error.message}`);
-      }
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
-  const canRun = nodeFile && memberFile && !isRunning;
 
   return (
     <div className="h-full flex flex-col max-w-[1400px] mx-auto animate-fade-in-up pb-6">
@@ -221,7 +227,7 @@ export default function TrussAnalysis({ setCurrentMenu }) {
                 <span className="font-mono font-bold text-[#002554]">{numMembers.toLocaleString()} EA</span>
               </div>
               <div className={`mt-2 flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed text-sm font-bold transition-colors ${isDataReady ? 'bg-green-50 border-green-200 text-green-700' : 'bg-slate-50 border-slate-300 text-slate-500'}`}>
-                {isDataReady ? <><CheckCircle2 size={18} /> Ready to Analyze</> : <><AlertCircle size={18} /> Awaiting CSV Data</>}
+                {isDataReady ? <><CheckCircle2 size={18} /> Ready to Build</> : <><AlertCircle size={18} /> Awaiting CSV Data</>}
               </div>
             </div>
           </div>
@@ -234,7 +240,7 @@ export default function TrussAnalysis({ setCurrentMenu }) {
             }`}
           >
             {isRunning ? <RefreshCw className="animate-spin" size={24} /> : <Play size={24} fill="currentColor" />}
-            {isRunning ? 'Solving...' : 'Run Truss Model Builder'}
+            {isRunning ? 'Building Model...' : 'Run Model Builder'}
           </button>
         </div>
 
@@ -247,7 +253,7 @@ export default function TrussAnalysis({ setCurrentMenu }) {
               <TabButton active={activeTab === 'member'} onClick={() => setActiveTab('member')} icon={Layers} label="Member Preview" count={numMembers} />
             </div>
             <div className="flex-1 overflow-auto bg-white custom-scrollbar relative">
-              {activeTab === 'node' ? <DataTable data={nodeData} emptyMsg="Node CSV 파일을 업로드하면 데이터를 미리볼 수 있습니다." /> : <DataTable data={memberData} emptyMsg="Member CSV 파일을 업로드하면 데이터를 미리볼 수 있습니다." />}
+              {activeTab === 'node' ? <DataTable data={nodeData} emptyMsg="Node CSV 파일을 업로드하면 데이터를 미리볼 수 있습니다." /> : <DataTable data={memberData} emptyMsg="Member CSV 파을 업로드하면 데이터를 미리볼 수 있습니다." />}
             </div>
           </div>
 
@@ -259,7 +265,6 @@ export default function TrussAnalysis({ setCurrentMenu }) {
                 <span className="text-xs font-mono font-bold text-slate-300 uppercase tracking-widest">System Console</span>
               </div>
               <div className="flex gap-3">
-                {/* 상세 로그 버튼 추가 */}
                 <button onClick={() => setIsLogModalOpen(true)} className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-bold cursor-pointer bg-blue-900/30 px-2 py-1 rounded">
                   <Maximize2 size={12}/> 상세 로그 보기
                 </button>
@@ -270,7 +275,7 @@ export default function TrussAnalysis({ setCurrentMenu }) {
             
             <div className="flex-1 p-4 font-mono text-[13px] overflow-y-auto custom-scrollbar">
               {logs.length === 0 ? (
-                <p className="text-slate-600">Waiting for analysis execution...</p>
+                <p className="text-slate-600">Waiting for task execution...</p>
               ) : (
                 logs.map((log, i) => (
                   <div key={i} className={`mb-1 ${log.type === 'error' ? 'text-red-400' : log.type === 'success' ? 'text-[#00E600] font-bold' : log.type === 'warning' ? 'text-yellow-400' : 'text-slate-300'}`}>
@@ -298,10 +303,9 @@ export default function TrussAnalysis({ setCurrentMenu }) {
               <Transition.Child as={Fragment} enter="ease-out duration-300" enterFrom="opacity-0 scale-95" enterTo="opacity-100 scale-100" leave="ease-in duration-200" leaveFrom="opacity-100 scale-100" leaveTo="opacity-0 scale-95">
                 <Dialog.Panel className="w-full max-w-5xl h-[80vh] flex flex-col transform overflow-hidden rounded-2xl bg-[#0F172A] text-left align-middle shadow-2xl transition-all border border-slate-700">
                   
-                  {/* 모달 헤더 */}
                   <div className="bg-slate-800 px-6 py-4 flex justify-between items-center border-b border-slate-700 shrink-0">
                     <Dialog.Title as="h3" className="text-lg font-bold text-white flex items-center gap-2">
-                      <FileText className="text-blue-400" /> Detailed Analysis Log (Raw)
+                      <FileText className="text-blue-400" /> Detailed System Log (Raw)
                     </Dialog.Title>
                     <div className="flex items-center gap-4">
                       <button onClick={downloadDetailedLog} className="flex items-center gap-2 text-sm font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
@@ -313,7 +317,6 @@ export default function TrussAnalysis({ setCurrentMenu }) {
                     </div>
                   </div>
 
-                  {/* 모달 바디 (로그 텍스트) */}
                   <div className="flex-1 p-6 overflow-auto bg-black font-mono text-xs text-slate-300 custom-scrollbar whitespace-pre-wrap leading-relaxed">
                     {detailedLogs.length === 0 ? (
                       <div className="h-full flex flex-col items-center justify-center text-slate-600">
@@ -322,11 +325,11 @@ export default function TrussAnalysis({ setCurrentMenu }) {
                       </div>
                     ) : (
                       detailedLogs.map((log, index) => {
-                        // 로그 내용에 따라 색상 하이라이팅
                         let textColor = "text-slate-300";
                         if (log.includes("WARNING")) textColor = "text-yellow-400";
-                        if (log.includes("ERROR") || log.includes("FATAL")) textColor = "text-red-400 font-bold";
+                        if (log.includes("ERROR") || log.includes("FATAL") || log.includes("FAILED")) textColor = "text-red-400 font-bold";
                         if (log.includes("SUCCESSFULLY") || log.includes("NORMALLY")) textColor = "text-[#00E600] font-bold";
+                        if (log.includes("[RESULT BDF PATH]")) textColor = "text-cyan-400 font-bold";
                         
                         return <div key={index} className={textColor}>{log}</div>;
                       })
@@ -344,7 +347,7 @@ export default function TrussAnalysis({ setCurrentMenu }) {
   );
 }
 
-// ================= UI Components (동일 유지) =================
+// ================= UI Components =================
 
 function UploadDropzone({ type, title, file, rowCount, onDrop, onChange }) {
   const inputRef = useRef(null);
