@@ -132,28 +132,36 @@ export default function TrussAnalysis({ setCurrentMenu }) {
       addDetailedLog(`Uploading ${nodeFile.name} and ${memberFile.name}...`);
       
       // FastAPI 서버로 POST 요청
-      const response = await axios.post(`${API_BASE_URL}/api/analysis/truss`, formData, {
+      const response = await axios.post(`${API_BASE_URL}/api/analysis/trussmodelbuilder`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
 
-      // 성공 시 처리
-      addLog('ANALYSIS COMPLETED SUCCESSFULLY.', 'success');
-      addLog('결과가 DB에 기록되었습니다.', 'info');
-      
-      // 서버에서 보내준 exe의 실제 콘솔 로그를 상세 모달에 반영
-      addDetailedLog('*** HITESS WORKBENCH SOLVER OUTPUT ***');
-      addDetailedLog(response.data.engine_log);
-      addDetailedLog('*** SOLVER FINISHED NORMALLY ***');
+     // 성공 시 처리
+      if (response.data.status === "Success") {
+        addLog('ANALYSIS COMPLETED SUCCESSFULLY.', 'success');
+        addLog('결과가 DB에 기록되었습니다.', 'info');
+        
+        // 서버에서 보내준 exe의 실제 콘솔 로그를 상세 모달에 반영
+        addDetailedLog('*** HITESS WORKBENCH SOLVER OUTPUT ***');
+        addDetailedLog(response.data.engine_log);
+        addDetailedLog(`[RESULT BDF PATH]: ${response.data.bdf_path}`);
+        addDetailedLog('*** SOLVER FINISHED NORMALLY ***');
+      } else {
+        // 백엔드에서 Exception 캐치 후 status를 "Failed"로 보낸 경우
+        addLog('ANALYSIS FAILED.', 'error');
+        addDetailedLog('*** ENGINE EXECUTION ERROR ***');
+        addDetailedLog(response.data.engine_log);
+      }
 
     } catch (error) {
       // 에러 발생 시 처리
       addLog('ANALYSIS FAILED.', 'error');
       
       if (error.response) {
-        // 서버에서 던진 상세 에러(HTTP 500 등)
-        addDetailedLog(`ERROR: ${error.response.data.detail}`);
+        // 서버에서 던진 상세 에러(HTTP 404, 500 등)
+        addDetailedLog(`ERROR: ${error.response.data.detail || error.response.statusText}`);
       } else {
         addDetailedLog(`ERROR: ${error.message}`);
       }
