@@ -14,13 +14,18 @@ class User(Base):
   is_active = Column(Boolean, default=False)
   is_admin = Column(Boolean, default=False)
 
+
 class AnalysisLog(Base):
   __tablename__ = "analysis_logs"
 
   id = Column(Integer, primary_key=True, index=True)
-  program_name = Column(String(100))  # 프로그램 이름 (예: Truss Analysis)
-  employee_id = Column(String(50), index=True)  # 요청한 사용자 사번
-  status = Column(String(50))  # 상태 (Success, Failed 등)
-  node_file_name = Column(String(255))  # 업로드된 Node 파일명
-  member_file_name = Column(String(255))  # 업로드된 Member 파일명
-  created_at = Column(DateTime(timezone=True), server_default=func.now())  # 사용(요청) 시간
+  program_name = Column(String(100))
+  employee_id = Column(String(50), index=True)
+  status = Column(String(50))
+
+  # 향후 다운로드를 위해 파일의 '절대 경로'를 저장합니다.
+  node_file_path = Column(String(500))
+  member_file_path = Column(String(500))
+  result_bdf_path = Column(String(500))  # 결과 BDF 파일 주소
+
+  created_at = Column(DateTime(timezone=True), server_default=func.now())
