@@ -1,3 +1,5 @@
+import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import React, { useState, useRef, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { 
@@ -107,48 +109,57 @@ export default function TrussAnalysis({ setCurrentMenu }) {
     URL.revokeObjectURL(url);
   };
 
-  const runAnalysis = () => {
+  const runAnalysis = async () => {
     if (!nodeFile || !memberFile) return;
     setIsRunning(true);
     setLogs([]);
-    setDetailedLogs([]); // 실행 시 초기화
+    setDetailedLogs([]); 
     
-    // 요약 그
     addLog('System Check OK. Preparing Truss Analysis Job...', 'info');
     
-    // 상세 로그 스트림 흉내내기
-    addDetailedLog('*** HITESS WORKBENCH SOLVER START ***');
-    addDetailedLog(`NODES: ${numNodes}, ELEMENTS: ${numMembers}`);
-    addDetailedLog('CHECKING ELEMENT CONNECTIVITY... OK');
-    addDetailedLog('GENERATING DEGREES OF FREEDOM (DOF)...');
+    // 로컬 스토리지에서 현재 로그인한 유저 정보(사번) 가져오기
+    const userStr = localStorage.getItem('user');
+    const employeeId = userStr ? JSON.parse(userStr).employee_id : 'guest';
 
-    setTimeout(() => {
-      addLog('Building Global Stiffness Matrix...', 'warning');
-      addDetailedLog('ASSEMBLING GLOBAL STIFFNESS MATRIX [K]...');
-      for(let i=1; i<=5; i++) addDetailedLog(`  -> Matrix block ${i}/5 processed.`);
-    }, 1000);
+    // multipart/form-data 생성을 위해 FormData 객체 사용
+    const formData = new FormData();
+    formData.append('node_file', nodeFile);
+    formData.append('member_file', memberFile);
+    formData.append('employee_id', employeeId);
 
-    setTimeout(() => {
-      addLog('Applying Boundary Conditions...', 'warning');
-      addDetailedLog('WARNING: Node 15 has rigid body motion potential. Applying weak spring.');
-      addDetailedLog('APPLYING CONSTRAINTS TO MATRIX...');
-    }, 2000);
+    try {
+      addLog('Uploading CSV files to server...', 'warning');
+      addDetailedLog(`Uploading ${nodeFile.name} and ${memberFile.name}...`);
+      
+      // FastAPI 서버로 POST 요청
+      const response = await axios.post(`${API_BASE_URL}/api/analysis/truss`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
-    setTimeout(() => {
-      addLog('Solving Linear Equations...', 'warning');
-      addDetailedLog('SOLVING [K]{U} = {F} USING SPARSE DIRECT SOLVER...');
-      addDetailedLog('ITERATION 1... CONVERGED.');
-    }, 3000);
-
-    setTimeout(() => {
+      // 성공 시 처리
       addLog('ANALYSIS COMPLETED SUCCESSFULLY.', 'success');
-      addLog('Result files (.op2, .h5) have been generated.', 'info');
-      addDetailedLog('COMPUTING STRESS/STRAIN RECOVERY...');
-      addDetailedLog('MAXIMUM DISPLACEMENT: 2.35 mm at Node 42');
-      addDetailedLog('MAXIMUM VON MISES STRESS: 145.2 MPa at Element 108');
-      addDetailedLog('*** HITESS WORKBENCH SOLVER FINISHED NORMALLY ***');
+      addLog('결과가 DB에 기록되었습니다.', 'info');
+      
+      // 서버에서 보내준 exe의 실제 콘솔 로그를 상세 모달에 반영
+      addDetailedLog('*** HITESS WORKBENCH SOLVER OUTPUT ***');
+      addDetailedLog(response.data.engine_log);
+      addDetailedLog('*** SOLVER FINISHED NORMALLY ***');
+
+    } catch (error) {
+      // 에러 발생 시 처리
+      addLog('ANALYSIS FAILED.', 'error');
+      
+      if (error.response) {
+        // 서버에서 던진 상세 에러(HTTP 500 등)
+        addDetailedLog(`ERROR: ${error.response.data.detail}`);
+      } else {
+        addDetailedLog(`ERROR: ${error.message}`);
+      }
+    } finally {
       setIsRunning(false);
-    }, 4500);
+    }
   };
 
   const canRun = nodeFile && memberFile && !isRunning;
