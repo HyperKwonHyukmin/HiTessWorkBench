@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Depends, HTTPException, status, FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from . import models, schemas, database
-import subprocess, os, datetime
+import subprocess
+import os
+from datetime import datetime  # <--- 이 부분이 핵심입니다.
 
 # DB 테이블 자동 생성 (테이블이 없을 때만 생성됨)
 models.Base.metadata.create_all(bind=database.engine)
