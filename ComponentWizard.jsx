@@ -138,8 +138,11 @@ export default function ComponentWizard() {
 
     createModel();
 
+    let animationId;
+
     const animate = () => {
-      requestAnimationFrame(animate);
+      // ✅ 2. requestAnimationFrame의 ID를 받아옴
+      animationId = requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
     };
@@ -153,9 +156,30 @@ export default function ComponentWizard() {
     };
     window.addEventListener('resize', handleResize);
 
+    // ✅ 3. 완벽한 메모리 정리 (Cleanup) 로직 적용
     return () => {
       window.removeEventListener('resize', handleResize);
-      if (mountRef.current) mountRef.current.removeChild(renderer.domElement);
+      
+      // (1) 백그라운드 렌더링 루프 강제 정지
+      cancelAnimationFrame(animationId);
+      
+      // (2) 씬(Scene) 내부의 모든 3D 객체 메모리 강제 해제
+      scene.traverse((object) => {
+        if (!object.isMesh) return;
+        if (object.geometry) object.geometry.dispose();
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach(material => material.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+      });
+
+      // (3) DOM에서 캔버스 제거 및 렌더러 폐기
+      if (mountRef.current && renderer.domElement) {
+        mountRef.current.removeChild(renderer.domElement);
+      }
       renderer.dispose();
     };
   }, [params, modelType, showResult]);
