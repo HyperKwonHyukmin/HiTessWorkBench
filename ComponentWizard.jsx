@@ -8,15 +8,11 @@ import {
 export default function ComponentWizard() {
   const mountRef = useRef(null);
   
-  // Three.js 객체 Ref
-  const sceneRef = useRef(null);
-  const cameraRef = useRef(null);
-  const rendererRef = useRef(null);
-  const controlsRef = useRef(null);
-  const modelGroupRef = useRef(null); 
+  // ✅ 1. 레이아웃 안정화 대기 상태 (앱 시작 시 버그 원천 차단)
+  const [isLayoutReady, setIsLayoutReady] = useState(false);
 
   // ==========================================
-  // 1. 상태 관리
+  // 상태 관리
   // ==========================================
   const [beamType, setBeamType] = useState('BAR');
   const [params, setParams] = useState({
@@ -35,105 +31,62 @@ export default function ComponentWizard() {
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showResult, setShowResult] = useState(false);
-
-  const [resultData, setResultData] = useState({
-    maxStress: 0,
-    maxDisp: 0,
-    area: 0,
-    inertia: 0
-  });
+  const [resultData, setResultData] = useState({ maxStress: 0, maxDisp: 0, area: 0, inertia: 0 });
 
   // ==========================================
-  // 2-1. Three.js 환경 초기화
+  // 2. 초기 렌더링 지연 (0.4초 후 Three.js 가동)
   // ==========================================
   useEffect(() => {
-    if (!mountRef.current) return;
+    // 사용자가 원한 "전체화면" 효과를 내기 위해, HTML 레이아웃이 100% 렌더링 된 후 캔버스를 올림
+    const timer = setTimeout(() => {
+      setIsLayoutReady(true);
+    }, 400); // 0.4초 대기
+    return () => clearTimeout(timer);
+  }, []);
 
-    // 초기 크기가 0일 경우를 대비해 최소 크기 보장
-    let width = mountRef.current.clientWidth || 800;
-    let height = mountRef.current.clientHeight || 600;
+  // ==========================================
+  // 3. Three.js 렌더링 (단일 훅으로 통합 관리)
+  // ==========================================
+  useEffect(() => {
+    // 레이아웃이 아직 준비 안 됐거나, DOM이 없으면 실행 안함
+    if (!isLayoutReady || !mountRef.current) return;
+
+    // 1) 씬 & 카메라 초기화
+    const width = mountRef.current.clientWidth;
+    const height = mountRef.current.clientHeight;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f172a); 
-    sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 100000);
-    cameraRef.current = camera;
-
+    
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // 성능을 위해 픽셀비율 최대 2로 제한
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
     mountRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true; 
     controls.dampingFactor = 0.05;
-    controlsRef.current = controls;
 
-    const modelGroup = new THREE.Group();
-    scene.add(modelGroup);
-    modelGroupRef.current = modelGroup;
-
+    // 조명
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
     sunLight.position.set(1000, 2000, 1000);
     scene.add(sunLight);
 
-    // ResizeObserver: 캔버스 크기 맞춤
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        if (width === 0 || height === 0) continue;
-        
-        renderer.setSize(width, height);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      }
-    });
-    resizeObserver.observe(mountRef.current);
-
-    let animationId;
-    const animate = () => {
-      animationId = requestAnimationFrame(animate);
-      controls.update(); 
-      renderer.render(scene, camera);
-    };
-    animate();
-
-    return () => {
-      cancelAnimationFrame(animationId);
-      resizeObserver.disconnect();
-      if (mountRef.current && renderer.domElement) {
-        try { mountRef.current.removeChild(renderer.domElement); } catch (e) {}
-      }
-      renderer.dispose();
-    };
-  }, []);
-
-  // ==========================================
-  // 2-2. 3D 모델 업데이트 및 뷰어 자동 프레이밍
-  // ==========================================
-  useEffect(() => {
-    if (!sceneRef.current || !modelGroupRef.current || !cameraRef.current || !controlsRef.current) return;
-
-    const group = modelGroupRef.current;
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-    
-    // 메모리 정리
-    group.children.slice().forEach(child => {
-      if (child.geometry) child.geometry.dispose();
-      if (child.material) child.material.dispose();
-      group.remove(child);
-    });
+    // 2) 모델 생성 (Model Group)
+    const modelGroup = new THREE.Group();
+    scene.add(modelGroup);
 
     const { length, dim1, dim2, dim3, dim4 } = params;
 
+    // [그리드]
     const gridHelper = new THREE.GridHelper(length * 1.5, 20, 0x334155, 0x1e293b);
-    gridHelper.position.set(0, -dim2 / 2 - 20, 0);
-    group.add(gridHelper);
+    gridHelper.position.set(0, -dim2 / 2 - 20, 0); // 항상 바닥 원점에 위치
+    modelGroup.add(gridHelper);
 
+    // [단면 형상]
     let geometry;
     if (beamType === 'H') {
       const shape = new THREE.Shape();
@@ -145,7 +98,7 @@ export default function ComponentWizard() {
       shape.lineTo(-w/2, -h/2);
 
       geometry = new THREE.ExtrudeGeometry(shape, { depth: length, bevelEnabled: false, steps: 20 });
-      geometry.center();
+      geometry.center(); // 원점으로 정중앙 배치
       geometry.rotateY(Math.PI / 2);
     } else {
       geometry = new THREE.BoxGeometry(length, dim2, dim1, 20, 1, 1);
@@ -162,36 +115,39 @@ export default function ComponentWizard() {
 
     const mesh = new THREE.Mesh(geometry, material);
     
-    // 엣지 라인 추가
+    // 외곽선 (Wireframe)
     const edges = new THREE.EdgesGeometry(geometry);
     const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff, opacity: 0.4, transparent: true }));
     mesh.add(line);
-    group.add(mesh);
+    modelGroup.add(mesh);
 
+    // [경계 조건]
     boundaries.forEach(bc => {
       const isFix = bc.type === 'Fix';
       const bcGeo = isFix ? new THREE.ConeGeometry(dim1*0.8, dim1*1.5, 4) : new THREE.SphereGeometry(dim1*0.6, 16, 16);
       const bcMat = new THREE.MeshPhongMaterial({ color: 0x3b82f6 }); 
       const bcMesh = new THREE.Mesh(bcGeo, bcMat);
       
-      const xPos = bc.pos - (length / 2);
+      const xPos = bc.pos - (length / 2); // 정중앙 보정
       const yPos = -dim2/2 - (isFix ? dim1*0.75 : dim1*0.6);
       bcMesh.position.set(xPos, yPos, 0);
-      group.add(bcMesh);
+      modelGroup.add(bcMesh);
     });
 
+    // [하중 화살표]
     loads.forEach(load => {
       const isDown = load.mag > 0; 
       const dir = new THREE.Vector3(0, isDown ? -1 : 1, 0); 
-      const xPos = load.pos - (length / 2);
+      const xPos = load.pos - (length / 2); // 정중앙 보정
       const originY = isDown ? dim2/2 + 200 : -dim2/2 - 200; 
       const origin = new THREE.Vector3(xPos, originY, 0);
       
       const arrowLen = Math.max(50, Math.min(200, Math.abs(load.mag) * 0.1));
       const arrowHelper = new THREE.ArrowHelper(dir, origin, arrowLen, 0xff3333, arrowLen*0.3, arrowLen*0.2); 
-      group.add(arrowHelper);
+      modelGroup.add(arrowHelper);
     });
 
+    // [처짐 시각화]
     if (showResult) {
       const positions = geometry.attributes.position;
       const colors = [];
@@ -211,21 +167,57 @@ export default function ComponentWizard() {
       positions.needsUpdate = true;
     }
 
-    // ✅ [핵심 2] 타이머나 BoundingBox 계산에 의존하지 않고 수학적으로 완벽한 거리 유지
-    const viewDist = Math.max(length, 500); // 빔 길이에 비례하되 최소 500 보장
+    // 3) 카메라 완벽 고정 (항상 모델을 정중앙에 꽉 차게 프레이밍)
+    const viewDist = Math.max(length, 500); 
     camera.position.set(viewDist * 0.8, viewDist * 0.6, viewDist * 1.0);
     controls.target.set(0, 0, 0);
     controls.update();
 
-  }, [params, beamType, loads, boundaries, showResult]);
+    // 4) 반응형 리사이즈
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width === 0 || height === 0) continue;
+        renderer.setSize(width, height);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      }
+    });
+    resizeObserver.observe(mountRef.current);
+
+    // 5) 애니메이션 루프
+    let animationId;
+    const animate = () => {
+      animationId = requestAnimationFrame(animate);
+      controls.update(); 
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // 6) 완벽한 클린업 (메모리 누수 방지)
+    return () => {
+      cancelAnimationFrame(animationId);
+      resizeObserver.disconnect();
+      scene.traverse((obj) => {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+          else obj.material.dispose();
+        }
+      });
+      if (mountRef.current && renderer.domElement) {
+        try { mountRef.current.removeChild(renderer.domElement); } catch(e) {}
+      }
+      renderer.dispose();
+    };
+  }, [isLayoutReady, params, beamType, loads, boundaries, showResult]);
 
   // ==========================================
-  // 3. UI 핸들러
+  // UI 핸들러
   // ==========================================
   const handleRunAnalysis = () => {
     setIsAnalyzing(true);
     setShowResult(false);
-    
     setTimeout(() => {
       setIsAnalyzing(false);
       setShowResult(true);
@@ -244,14 +236,22 @@ export default function ComponentWizard() {
   const removeLoad = (index) => setLoads(loads.filter((_, i) => i !== index));
 
   return (
-    // ✅ [핵심 1] flex-row, flex-nowrap 강제 적용으로 HTML 요소가 밑으로 떨어지는 현상을 원천 차단
-    // h-[calc(100vh-100px)]로 화면 전체를 꽉 채우고 외부 스크롤 방지
-    <div className="flex flex-row flex-nowrap w-full h-[calc(100vh-100px)] min-h-[600px] bg-slate-900 p-4 gap-4 animate-fade-in-up rounded-2xl shadow-inner overflow-hidden">
+    // ✅ 핵심 수정 1: CSS Grid를 사용하여 공간 분할. flex로 인한 무한 증식 현상을 영구 차단합니다.
+    // 전체 창을 무조건 꽉 채우도록 h-[calc(100vh-100px)] 부여
+    <div className="grid grid-cols-[350px_1fr] w-full h-[calc(100vh-100px)] min-h-[600px] bg-slate-900 p-4 gap-4 animate-fade-in-up rounded-2xl shadow-inner overflow-hidden relative">
       
+      {/* 로딩 화면: 0.4초 동안 렌더링을 잡아둠 */}
+      {!isLayoutReady && (
+        <div className="col-span-2 absolute inset-0 z-50 flex flex-col items-center justify-center bg-slate-900 text-[#00E600]">
+          <RefreshCw className="animate-spin mb-4" size={48} />
+          <p className="font-mono font-bold tracking-widest uppercase">Initializing 3D Environment...</p>
+        </div>
+      )}
+
       {/* -------------------------------------------
-          좌측 설정 패널 (가로 사이즈 350px 완전 고정)
+          좌측 설정 패널 (350px 고정)
       ------------------------------------------- */}
-      <div className="w-[350px] flex-none flex flex-col gap-4 h-full overflow-y-auto custom-scrollbar pr-2 z-10">
+      <div className="flex flex-col gap-4 h-full overflow-y-auto custom-scrollbar pr-2 z-10">
         
         <div className="bg-slate-800 rounded-2xl p-5 shadow-xl border border-slate-700 shrink-0">
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -338,10 +338,12 @@ export default function ComponentWizard() {
       </div>
 
       {/* -------------------------------------------
-          우측 3D 캔버스 영역 (캔버스가 부모를 찢고 나가지 못하도록 min-w-0 부)
+          우측 3D 캔버스 영역 (나머지 영역 자동 채움)
       ------------------------------------------- */}
-      <div className="flex-1 min-w-0 relative h-full bg-black rounded-xl border border-slate-800 overflow-hidden z-0">
-        <div ref={mountRef} className="absolute inset-0 w-full h-full cursor-move block" />
+      <div className="relative h-full bg-black rounded-xl border border-slate-800 overflow-hidden z-0">
+        
+        {/* ✅ 핵심 수정 2: absolute inset-0로 부모 크기에 100% 종속시킴 */}
+        <div ref={mountRef} className="absolute inset-0 w-full h-full cursor-move" />
         
         {showResult && (
           <div className="absolute top-6 right-6 bg-slate-900/90 backdrop-blur-md p-5 rounded-xl border border-slate-700 shadow-2xl animate-fade-in-up z-10 pointer-events-auto">
