@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, JSON, Float
 from sqlalchemy.sql import func
 from .database import Base
+from datetime import datetime
 
 class User(Base):
   __tablename__ = "users"
@@ -12,6 +13,10 @@ class User(Base):
   position = Column(String(50))
   is_active = Column(Boolean, default=False)
   is_admin = Column(Boolean, default=False)
+
+  login_count = Column(Integer, default=0)  # 로그인 횟수 (기본값 0)
+  last_login = Column(DateTime(timezone=True), nullable=True)  # 마지막 로그인 시간
+  created_at = Column(DateTime(timezone=True), default=datetime.now)
 
 class Analysis(Base):
   __tablename__ = "analysis"
