@@ -49,22 +49,30 @@ def health_check():
 @app.post("/api/login", response_model=schemas.UserResponse)
 def login(request: schemas.LoginRequest, db: Session = Depends(database.get_db)):
   user = db.query(models.User).filter(models.User.employee_id == request.employee_id).first()
-
+  # 1) 유저가 없는 경우
   if not user:
     raise HTTPException(status_code=404, detail="User not found")
-
+  # 2) 유저가 있지만 관리자 승인이 안 된 경우 (이때는 카운트를 올리지 않음)
   if not user.is_active:
     raise HTTPException(status_code=403, detail="Approval Pending")
+  # ✅ 3) 정상적으로 로그인에 성공한 경우: 카운트 +1 및 마지막 로그인 시간 갱신
+  user.login_count += 1
+  user.last_login = datetime.now()
+  db.commit()  # 변경사항 DB 저장
+  db.refresh(user)  # 최신 상태 갱신
 
   return user
 
 
-# 4. 회원가입 API (수정됨: permissions 제거)
+# 4. 회원가입 API
 @app.post("/api/register", response_model=schemas.UserResponse)
 def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_db)):
   existing_user = db.query(models.User).filter(models.User.employee_id == user.employee_id).first()
   if existing_user:
     raise HTTPException(status_code=400, detail="Employee ID already registered")
+
+  # ✅ 파이썬에서 직접 현재 시간을 생성하여 주입!
+  current_time = datetime.now()
 
   new_user = models.User(
     employee_id=user.employee_id,
@@ -72,14 +80,16 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_d
     company=user.company,
     department=user.department,
     position=user.position,
-    # permissions=user.permissions,  <-- 삭제됨
-    is_active=False,  # 기본값: 승인 대기
-    is_admin=False  # 기본값: 일반 유저
+    is_active=False,
+    is_admin=False,
+    # ✅ 명시적으로 초기값 0과 현재 가입 시간을 세팅
+    login_count=0,
+    created_at=current_time
   )
 
   db.add(new_user)
   db.commit()
-  db.refresh(new_user)
+  db.refresh(new_user) # 이제 파이썬 메모리에 current_time이 확실히 재하므로 프론트로 잘 넘어감
 
   return new_user
 
