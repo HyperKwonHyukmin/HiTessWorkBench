@@ -69,21 +69,21 @@ function App() {
         return <Dashboard setCurrentMenu={setCurrentMenu} />;
         
      // ✅ 1. File-Based Analysis 허브
+      case 'My Project':
+      case 'My Projects':
+        return <MyProjects setCurrentMenu={setCurrentMenu} />;
+      
       case 'New Analysis':
-      case 'File-Based Analysis': 
+      case 'File-Based Analysis':
         return <NewAnalysis setCurrentMenu={setCurrentMenu} />;
       
-      case 'Truss Analysis': 
-        return <TrussAnalysis setCurrentMenu={setCurrentMenu} />;
-
-      // ✅ 2. Interactive Apps 허브
-      case 'Interactive Apps': 
-        return <InteractiveApps setCurrentMenu={setCurrentMenu} />;
-      
-      // ✅ 3. Simple Beam Analyzer 앱 실행 (기존 Component Wizard 재활용)
-      case 'Simple Beam Analyzer':
       case 'Component Wizard':
+      case 'Interactive Apps':
+      case 'Simple Beam Analyzer':
         return <ComponentWizard />;
+      
+      case 'Truss Analysis':
+        return <TrussAnalysis setCurrentMenu={setCurrentMenu} />;
       
       default:
         // 아직 컴포넌트가 만들어지지 않은 신규 메뉴들(AI Lab Assistant, Notice 등)을 눌렀을 때
