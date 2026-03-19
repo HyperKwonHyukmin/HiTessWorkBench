@@ -98,7 +98,6 @@ const ProjectRow = ({ id, name, type, status, date }) => {
   );
 };
 
-
 // ---------------------------------------------------------
 // MAIN DASHBOARD COMPONENT
 // ---------------------------------------------------------
@@ -107,7 +106,6 @@ export default function Dashboard({ setCurrentMenu }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ DB에서 내 프로젝트 이력을 긁어옴 (MyProjects와 완벽히 동일한 원리)
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -116,7 +114,6 @@ export default function Dashboard({ setCurrentMenu }) {
         if (!employeeId) return;
 
         const response = await axios.get(`${API_BASE_URL}/api/analysis/history/${employeeId}`);
-        // 최신순으로 정렬
         const sortedData = response.data.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         setProjects(sortedData);
       } catch (error) {
@@ -128,14 +125,7 @@ export default function Dashboard({ setCurrentMenu }) {
     fetchHistory();
   }, []);
 
-  // ✅ 프로젝트 데이터를 기반으로 대시보드 통계 산출
   const totalExecutions = projects.length;
-  
-  // 성공률 계산
-  const successCount = projects.filter(p => p.status === 'Success').length;
-  const successRate = totalExecutions > 0 ? Math.round((successCount / totalExecutions) * 100) : 0;
-  
-  // 이번 달 사용량 계산
   const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
   const monthlyUsageCount = projects.filter(p => {
@@ -143,7 +133,6 @@ export default function Dashboard({ setCurrentMenu }) {
     return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
   }).length;
 
-  // ✅ 즐겨찾기 클릭 시 해당 페이지로 라우팅
   const handleFavoriteClick = (title) => {
     if (title === "Truss Model Builder") {
       setCurrentMenu('Truss Analysis');
@@ -170,24 +159,8 @@ export default function Dashboard({ setCurrentMenu }) {
         </div>
       </div>
 
-      {/* [Row 1] 통계 카드 (실제 데이터 반영) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
-        <EngineeringStatCard 
-          title="Total Projects" 
-          titleKo="총 해석 수행 건수"
-          value={`${totalExecutions} 건`}
-          subtext="Accumulated Executions" 
-          icon={Database} 
-          color="bg-blue-500"
-        />
-        <EngineeringStatCard 
-          title="Success Rate"
-          titleKo="해석 성공률" 
-          value={`${successRate} %`} 
-          subtext="Completed without FATAL" 
-          icon={CheckCircle2} 
-          color="bg-emerald-500"
-        />
+      {/* ✅ [수정됨] 통계 카드를 2개로 줄이고 그리드를 1/2 로 분할 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-2">
         <EngineeringStatCard 
           title="Monthly Usage" 
           titleKo="이번 달 사용량"
@@ -196,11 +169,18 @@ export default function Dashboard({ setCurrentMenu }) {
           icon={CalendarDays} 
           color="bg-indigo-500"
         />
+        <EngineeringStatCard 
+          title="Total Projects" 
+          titleKo="총 해석 수행 건수"
+          value={`${totalExecutions} 건`}
+          subtext="Accumulated Executions" 
+          icon={Database} 
+          color="bg-blue-500"
+        />
       </div>
 
       <NoticeBanner />
 
-      {/* [Row 3] 즐겨찾기 */}
       <div className="space-y-4">
         <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
           <Star size={16} className="text-yellow-500" fill="currentColor" /> My Favorites
@@ -227,7 +207,7 @@ export default function Dashboard({ setCurrentMenu }) {
                   desc={analysisInfo.description} 
                   icon={analysisInfo.icon} 
                   color={analysisInfo.color} 
-                  onClick={() => handleFavoriteClick(analysisInfo.title)} // ✅ 라우팅 함수 주입
+                  onClick={() => handleFavoriteClick(analysisInfo.title)}
                 />
               );
             })}
@@ -235,7 +215,6 @@ export default function Dashboard({ setCurrentMenu }) {
         )}
       </div>
 
-      {/* [Row 4] 최근 프로젝트 리스트 (실제 DB 데이터 5개만 추출) */}
       <div className="mt-8">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
@@ -277,7 +256,6 @@ export default function Dashboard({ setCurrentMenu }) {
                     </td>
                   </tr>
                 ) : (
-                  // ✅ 최신 5개 항목만 잘라서 렌더링
                   projects.slice(0, 5).map((project) => (
                     <ProjectRow 
                       key={project.id}
