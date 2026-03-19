@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form, BackgroundTasks
 from fastapi.responses import FileResponse
 import urllib.parse
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,9 +6,10 @@ from sqlalchemy.orm import Session
 from . import models, schemas, database
 import subprocess
 import os
-from datetime import datetime  # <--- 이 부분이 핵심입니다.
+import uuid
+from datetime import datetime
 
-# DB 테이블 자동 생성 (테이블이 없을 때만 생성됨)
+# DB 테이블 자동 생성
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
@@ -21,16 +22,20 @@ origins = [
 
 app.add_middleware(
   CORSMiddleware,
-  allow_origins=["*"],  # 모든 IP 허용
-  allow_credentials=False,  # [중요] * 와 함께 쓸 때는 False여야 함 (JWT/세션 쿠키 안 쓸 경우)
+  allow_origins=["*"],
+  allow_credentials=False,
   allow_methods=["*"],
   allow_headers=["*"],
 )
 
 # ==========================================
-# [설정] 서버 버전 (클라이언트와 일치해야 함)
+# [설정] 서버 버전 및 전역 상태 저장소
 # ==========================================
 SERVER_VERSION = "1.0.0"
+
+# ✅ 비동기 작업 진행도를 저장할 메모리 저장소 (딕셔너리)
+# 실제 상용화 시에는 Redis로 교체하는 것이 가장 좋습니다.
+job_status_store = {}
 
 
 # 1. 서버 버전 확인 API
@@ -49,17 +54,15 @@ def health_check():
 @app.post("/api/login", response_model=schemas.UserResponse)
 def login(request: schemas.LoginRequest, db: Session = Depends(database.get_db)):
   user = db.query(models.User).filter(models.User.employee_id == request.employee_id).first()
-  # 1) 유저가 없는 경우
   if not user:
     raise HTTPException(status_code=404, detail="User not found")
-  # 2) 유저가 있지만 관리자 승인이 안 된 경우 (이때는 카운트를 올리지 않음)
   if not user.is_active:
     raise HTTPException(status_code=403, detail="Approval Pending")
-  # ✅ 3) 정상적으로 로그인에 성공한 경우: 카운트 +1 및 마지막 로그인 시간 갱신
+
   user.login_count += 1
   user.last_login = datetime.now()
-  db.commit()  # 변경사항 DB 저장
-  db.refresh(user)  # 최신 상태 갱신
+  db.commit()
+  db.refresh(user)
 
   return user
 
@@ -71,9 +74,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_d
   if existing_user:
     raise HTTPException(status_code=400, detail="Employee ID already registered")
 
-  # ✅ 파이썬에서 직접 현재 시간을 생성하여 주입!
   current_time = datetime.now()
-
   new_user = models.User(
     employee_id=user.employee_id,
     name=user.name,
@@ -82,145 +83,122 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_d
     position=user.position,
     is_active=False,
     is_admin=False,
-    # ✅ 명시적으로 초기값 0과 현재 가입 시간을 세팅
     login_count=0,
     created_at=current_time
   )
 
   db.add(new_user)
   db.commit()
-  db.refresh(new_user) # 이제 파이썬 메모리에 current_time이 확실히 재하므로 프론트로 잘 넘어감
+  db.refresh(new_user)
 
   return new_user
 
-# main.py에 추가
 
-# 유저 목록 조회
+# 5. 유저 관리 API
 @app.get("/api/users")
 def get_users(db: Session = Depends(database.get_db)):
-    return db.query(models.User).all()
+  return db.query(models.User).all()
 
-# 유저 상태 업데이트 (승인/관리자 권한)
+
 @app.put("/api/users/{user_id}")
 def update_user(user_id: int, update_data: dict, db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    for key, value in update_data.items():
-        setattr(user, key, value)
-    db.commit()
-    return {"message": "Update successful"}
+  user = db.query(models.User).filter(models.User.id == user_id).first()
+  if not user:
+    raise HTTPException(status_code=404, detail="User not found")
+  for key, value in update_data.items():
+    setattr(user, key, value)
+  db.commit()
+  return {"message": "Update successful"}
 
-# 유저 삭제
+
 @app.delete("/api/users/{user_id}")
 def delete_user(user_id: int, db: Session = Depends(database.get_db)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    db.delete(user)
-    db.commit()
-    return {"message": "User deleted"}
+  user = db.query(models.User).filter(models.User.id == user_id).first()
+  if not user:
+    raise HTTPException(status_code=404, detail="User not found")
+  db.delete(user)
+  db.commit()
+  return {"message": "User deleted"}
 
 
-# ----------------------------------------------------
-# [추가] 사용자의 해석 이력 조회 API
-# ----------------------------------------------------
+# 6. 해석 이력 및 파일 다운로드 API
 @app.get("/api/analysis/history/{employee_id}")
 def get_analysis_history(employee_id: str, db: Session = Depends(database.get_db)):
-  # 최신순으로 정렬하여 이력 가져오기
   history = db.query(models.Analysis).filter(models.Analysis.employee_id == employee_id).order_by(
     models.Analysis.created_at.desc()).all()
   return history
 
+
 @app.get("/api/download")
 def download_file(filepath: str):
-  # URL 인코딩된 파일 경로 디코딩
   decoded_path = urllib.parse.unquote(filepath)
-
   if not os.path.exists(decoded_path):
     raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
-
   filename = os.path.basename(decoded_path)
   return FileResponse(path=decoded_path, filename=filename, media_type='application/octet-stream')
 
 
-@app.post("/api/analysis/trussmodelbuilder")
-async def run_truss_model_builder(
-        node_file: UploadFile = File(...),
-        member_file: UploadFile = File(...),
-        employee_id: str = Form(...),
-        db: Session = Depends(database.get_db)
-):
-  # 1. 경로 설정 (main.py 위치 기준 부모 폴더 계산)
-  base_dir = os.path.dirname(os.path.abspath(__file__))
-  parent_dir = os.path.dirname(base_dir)
+# ==============================================================================
+# [NEW] 비동기 해석 파이프라인 (Background Task & Polling)
+# ==============================================================================
 
-  # 2. 사용자별 고유 작업 폴더 생성 (userConnection/사번_시간)
-  timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-  unique_folder = f"{employee_id}_{timestamp}"
-  work_dir = os.path.abspath(os.path.join(parent_dir, "userConnection", unique_folder))
-  os.makedirs(work_dir, exist_ok=True)
+# ✅ 7. 작업 진행 상태 조회 API (프론트엔드에서 1~2초마다 찔러봄)
+@app.get("/api/analysis/status/{job_id}")
+def get_job_status(job_id: str):
+  if job_id not in job_status_store:
+    raise HTTPException(status_code=404, detail="Job not found")
+  return job_status_store[job_id]
 
-  # 3. 파일 저장 절대 경로 설정
-  node_path = os.path.join(work_dir, node_file.filename)
-  member_path = os.path.join(work_dir, member_file.filename)
 
-  # 4. 클라이언트가 보낸 CSV 파일 실제 저장
-  try:
-    with open(node_path, "wb") as buffer:
-      buffer.write(await node_file.read())
-    with open(member_path, "wb") as buffer:
-      buffer.write(await member_file.read())
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=f"File save error: {str(e)}")
+# ✅ 8. 실제 해석을 백그라운드에서 수행하는 함수 (별도 스레드에서 동작)
+def task_execute_truss(job_id: str, node_path: str, member_path: str, work_dir: str, exe_path: str, exe_dir: str,
+                       employee_id: str, timestamp: str):
+  # 시작 상태 업데이트
+  job_status_store[job_id].update({"status": "Running", "progress": 10, "message": "Initiating Truss Solver..."})
 
-  # 5. EXE 프로그램 경로 및 데이터 구조화
-  exe_dir = os.path.abspath(os.path.join(parent_dir, "InHouseProgram", "TrussModelBuilder"))
-  exe_path = os.path.join(exe_dir, "TrussModelBuilder.exe")
-
-  # JSON 컬럼에 넣을 데이터 딕셔너리
-  input_data = {
-    "node_csv": node_path,
-    "member_csv": member_path
-  }
+  input_data = {"node_csv": node_path, "member_csv": member_path}
   result_data = {}
-
   status_msg = "Success"
   engine_output = ""
   final_bdf_path = None
+  project_data = None
 
-  # 6. 프로그램 실행 로직
-  if not os.path.exists(exe_path):
-    status_msg = "Failed"
-    engine_output = f"Executable not found: {exe_path}"
-  else:
-    cmd_args = [exe_path, exe_dir, node_path, member_path]
-    try:
-      # 외부 EXE 실행 대기
-      result = subprocess.run(cmd_args, capture_output=True, text=True, check=True)
-      engine_output = result.stdout
+  # ⚠️ 백그라운드 스레드에서는 Depends를 쓸 수 없으므로 DB 세션을 직접 열고 닫아야 합니다.
+  db = database.SessionLocal()
 
-      # ✅ [핵심 변경 포인트] 해석 종료 후 폴더를 스캔하여 확장자가 .bdf인 파일 찾기
-      bdf_files = [f for f in os.listdir(work_dir) if f.endswith('.bdf')]
+  try:
+    if not os.path.exists(exe_path):
+      status_msg = "Failed"
+      engine_output = f"Executable not found: {exe_path}"
+    else:
+      job_status_store[job_id].update({"progress": 40, "message": "Solving Linear Equations..."})
+      cmd_args = [exe_path, exe_dir, node_path, member_path]
 
-      if bdf_files:
-        # 찾은 첫 번째 bdf 파일의 절대 경로를 추출
-        final_bdf_path = os.path.join(work_dir, bdf_files[0])
-        result_data = {"bdf": final_bdf_path}
-      else:
-        # EXE가 정상 종료되었으나 bdf 파일이 없는 경우 (해석 내부 실패)
+      try:
+        # 외부 EXE 실행 (이 동안 스레드는 블로킹되지만 메인 서버는 멈추지 않음)
+        result = subprocess.run(cmd_args, capture_output=True, text=True, check=True)
+        engine_output = result.stdout
+
+        job_status_store[job_id].update({"progress": 80, "message": "Extracting Results & Writing BDF..."})
+
+        bdf_files = [f for f in os.listdir(work_dir) if f.endswith('.bdf')]
+        if bdf_files:
+          final_bdf_path = os.path.join(work_dir, bdf_files[0])
+          result_data = {"bdf": final_bdf_path}
+        else:
+          status_msg = "Failed"
+          engine_output += "\n[Error] Engine execution finished, but no .bdf file was created."
+
+      except subprocess.CalledProcessError as e:
         status_msg = "Failed"
-        engine_output += "\n[Error] Engine execution finished, but no .bdf file was created."
+        engine_output = e.stderr if e.stderr else e.stdout
+      except Exception as e:
+        status_msg = "Failed"
+        engine_output = f"System Error: {str(e)}"
 
-    except subprocess.CalledProcessError as e:
-      status_msg = "Failed"
-      engine_output = e.stderr if e.stderr else e.stdout
-    except Exception as e:
-      status_msg = "Failed"
-      engine_output = f"System Error: {str(e)}"
+    # DB 기록 단계
+    job_status_store[job_id].update({"progress": 95, "message": "Saving to Database..."})
 
-    # 7. DB 기록
-    project_data = None
     try:
       new_analysis = models.Analysis(
         project_name=f"Truss_Job_{timestamp}",
@@ -232,9 +210,8 @@ async def run_truss_model_builder(
       )
       db.add(new_analysis)
       db.commit()
-      db.refresh(new_analysis)  # 생성된 ID와 시간 가져오기
+      db.refresh(new_analysis)
 
-      # 프론트엔드 모달에 띄워줄 데이터 구성
       project_data = {
         "id": new_analysis.id,
         "project_name": new_analysis.project_name,
@@ -246,12 +223,62 @@ async def run_truss_model_builder(
         "created_at": new_analysis.created_at.isoformat() if new_analysis.created_at else datetime.now().isoformat()
       }
     except Exception as db_e:
-      print(f"DB 기록 오류: {str(db_e)}")
+      status_msg = "Failed"
+      engine_output += f"\nDB 기록 오류: {str(db_e)}"
 
-    # 8. 최종 응답 반환
-    return {
+    # 🚀 최종 상태 100% 업데이트
+    job_status_store[job_id].update({
       "status": status_msg,
+      "progress": 100,
+      "message": "Analysis Completed Successfully" if status_msg == "Success" else "Analysis Failed",
       "engine_log": engine_output,
-      "bdf_path": final_bdf_path if status_msg == "Success" else None,
-      "project": project_data  # <--- 이 부분이 추가됨!
-    }
+      "bdf_path": final_bdf_path,
+      "project": project_data
+    })
+
+  finally:
+    db.close()  # 메모리 누수를 막기 위해 무조건 닫음
+
+
+# ✅ 9. 해석 '요청' API (파일만 받고 바로 응답)
+@app.post("/api/analysis/truss/request")
+async def request_truss_analysis(
+        background_tasks: BackgroundTasks,
+        node_file: UploadFile = File(...),
+        member_file: UploadFile = File(...),
+        employee_id: str = Form(...)
+        # 주의: 이 함수 안에서는 DB 세션이 필요 없습니다 (백그라운드가 담당)
+):
+  base_dir = os.path.dirname(os.path.abspath(__file__))
+  parent_dir = os.path.dirname(base_dir)
+  timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+  unique_folder = f"{employee_id}_{timestamp}"
+  work_dir = os.path.abspath(os.path.join(parent_dir, "userConnection", unique_folder))
+  os.makedirs(work_dir, exist_ok=True)
+
+  node_path = os.path.join(work_dir, node_file.filename)
+  member_path = os.path.join(work_dir, member_file.filename)
+
+  # 클라이언트가 보낸 CSV 파일 실제 저장
+  try:
+    with open(node_path, "wb") as buffer:
+      buffer.write(await node_file.read())
+    with open(member_path, "wb") as buffer:
+      buffer.write(await member_file.read())
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f"File save error: {str(e)}")
+
+  exe_dir = os.path.abspath(os.path.join(parent_dir, "InHouseProgram", "TrussModelBuilder"))
+  exe_path = os.path.join(exe_dir, "TrussModelBuilder.exe")
+
+  # 🚀 고유 Job ID 생성 및 초기화
+  job_id = str(uuid.uuid4())
+  job_status_store[job_id] = {"status": "Pending", "progress": 0, "message": "Request Received"}
+
+  # 백그라운드 워커에 일거리 투척!
+  background_tasks.add_task(
+    task_execute_truss, job_id, node_path, member_path, work_dir, exe_path, exe_dir, employee_id, timestamp
+  )
+
+  # 서버는 브라우저를 잡고 있지 않고 즉시 ID만 돌려줌
+  return {"job_id": job_id}
