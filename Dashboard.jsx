@@ -134,14 +134,15 @@ export default function Dashboard({ setCurrentMenu }) {
   }).length;
 
   const handleFavoriteClick = (title) => {
-    if (title === "Truss Model Builder") {
-      setCurrentMenu('Truss Analysis');
-    } else if (title === "1D Beam 구조 해석") {
-      setCurrentMenu('Component Wizard');
-    } else {
-      alert(`[안내] ${title} 기능은 현재 준비 중입니다.`);
-    }
-  };
+      if (title === "Truss Model Builder") {
+        setCurrentMenu('Truss Analysis');
+      } else if (title === "Simple Beam Analyzer") {
+        // ✅ "1D Beam 구조 해석" 대신 바뀐 타이틀로 라우팅
+        setCurrentMenu('Simple Beam Analyzer'); 
+      } else {
+        alert(`[안내] ${title} 기능은 현재 준비 중입니다.`);
+      }
+    };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-10 animate-fade-in-up">
