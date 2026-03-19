@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Fragment } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { 
@@ -18,15 +18,15 @@ export default function ComponentWizard() {
   const modelGroupRef = useRef(null); 
 
   // ==========================================
-  // 1. 상태 관리
+  // 1. 상태 관리 (입력값은 모두 자유로운 타이핑을 위해 문자열 그대로 허용)
   // ==========================================
-  const [beamType, setBeamType] = useState('H');
+  const [beamType, setBeamType] = useState('I');
   const [params, setParams] = useState({
     length: 1000,
-    dim1: 100, // Width / Dia
-    dim2: 200, // Height / Thk (Tube)
-    dim3: 15,  // tf
-    dim4: 10,  // tw
+    dim1: 100, 
+    dim2: 200, 
+    dim3: 10,  
+    dim4: 8,   
   });
 
   const [loads, setLoads] = useState([{ pos: 500, mag: 2000 }]);
@@ -37,7 +37,7 @@ export default function ComponentWizard() {
   const [resultData, setResultData] = useState({ maxStress: 0, maxDisp: 0, area: 0, inertia: 0 });
 
   // ==========================================
-  // 2. 입력 검증 (Validation) 및 핸들러
+  // 2. 입력 핸들러 (타이핑 방해 원천 차단)
   // ==========================================
   
   const handleBeamTypeChange = (e) => {
@@ -47,53 +47,36 @@ export default function ComponentWizard() {
 
     const newParams = { ...params };
     switch (type) {
-      case 'BAR': newParams.dim1 = 50; newParams.dim2 = 100; break;
-      case 'H':
-      case 'CHAN': newParams.dim1 = 100; newParams.dim2 = 200; newParams.dim3 = 15; newParams.dim4 = 10; break;
+      case 'BAR': 
+        newParams.dim1 = 50; newParams.dim2 = 100; break;
+      case 'I': 
+        newParams.dim1 = 100; newParams.dim2 = 200; newParams.dim3 = 10; newParams.dim4 = 8; break;
+      case 'H': 
+        newParams.dim1 = 200; newParams.dim2 = 200; newParams.dim3 = 15; newParams.dim4 = 15; break;
+      case 'CHAN': 
+        newParams.dim1 = 100; newParams.dim2 = 200; newParams.dim3 = 15; newParams.dim4 = 10; break;
       case 'L':
-      case 'T': newParams.dim1 = 100; newParams.dim2 = 100; newParams.dim3 = 10; newParams.dim4 = 10; break;
-      case 'ROD': newParams.dim1 = 100; break;
-      case 'TUBE': newParams.dim1 = 100; newParams.dim2 = 20; break;
+      case 'T': 
+        newParams.dim1 = 100; newParams.dim2 = 100; newParams.dim3 = 10; newParams.dim4 = 10; break;
+      case 'ROD': 
+        newParams.dim1 = 100; break;
+      case 'TUBE': 
+        newParams.dim1 = 100; newParams.dim2 = 20; break;
       default: break;
     }
     setParams(newParams);
   };
 
+  // ✅ 실시간 Alert 팝업을 제거하고 입력된 텍스트를 그대로 저장합니다.
   const handleBoundaryPosChange = (idx, value) => {
-    if (value === '') {
-      const newBc = [...boundaries];
-      newBc[idx].pos = '';
-      setBoundaries(newBc);
-      return;
-    }
-    let val = Number(value);
-    const currentLength = Number(params.length) || 0;
-    if (val > currentLength) {
-      alert(`경계조건 위치(${val}mm)는 부재의 전체 길이(${currentLength}mm)를 초과할 수 없습니다.`);
-      val = currentLength;
-    } else if (val < 0) val = 0;
-
     const newBc = [...boundaries];
-    newBc[idx].pos = val;
+    newBc[idx].pos = value;
     setBoundaries(newBc);
   };
 
   const handleLoadPosChange = (idx, value) => {
-    if (value === '') {
-      const newLoads = [...loads];
-      newLoads[idx].pos = '';
-      setLoads(newLoads);
-      return;
-    }
-    let val = Number(value);
-    const currentLength = Number(params.length) || 0;
-    if (val > currentLength) {
-      alert(`하중 위치(${val}mm)는 부재의 전체 길이(${currentLength}mm)를 초과할 수 없습니다.`);
-      val = currentLength;
-    } else if (val < 0) val = 0;
-
     const newLoads = [...loads];
-    newLoads[idx].pos = val;
+    newLoads[idx].pos = value;
     setLoads(newLoads);
   };
 
@@ -110,19 +93,34 @@ export default function ComponentWizard() {
     if (beamType === 'TUBE') {
       if (dim2 >= dim1 / 2) return `TUBE의 두께(t: ${dim2})는 반경(D/2: ${dim1/2})보다 작아야 합니다.`;
     }
-    if (['H', 'CHAN'].includes(beamType)) {
+    if (beamType === 'I' || beamType === 'CHAN') {
       if (dim3 >= dim2 / 2) return `Flange 두께(tf: ${dim3})는 전체 높이의 절반(H/2: ${dim2/2})보다 작아야 합니다.`;
       if (dim4 >= dim1) return `Web 두께(tw: ${dim4})는 전체 폭(W: ${dim1})보다 작아야 합니다.`;
+    }
+    if (beamType === 'H') {
+      if (dim3 >= dim1 / 2) return `Flange 두께(tf: ${dim3})는 전체 폭의 절반(W/2: ${dim1/2})보다 작아야 합니다.`;
+      if (dim4 >= dim2) return `Web 두께(tw: ${dim4})는 전체 높이(H: ${dim2})보다 작아야 합니다.`;
     }
     if (['L', 'T'].includes(beamType)) {
       if (dim3 >= dim2) return `Flange 두께(tf: ${dim3})는 전체 높이(H: ${dim2})보다 작아야 합니다.`;
       if (dim4 >= dim1) return `Web 두께(tw: ${dim4})는 전체 폭(W: ${dim1})보다 작아야 합니다.`;
     }
+
+    // ✅ 여기서 Boundary와 Load의 위치가 Length를 초과하는지 최종 검사합니다.
+    for (let i = 0; i < boundaries.length; i++) {
+       const p = Number(boundaries[i].pos) || 0;
+       if (p < 0 || p > length) return `경계조건 위치(${p}mm)는 전체 길이(0 ~ ${length}mm)를 벗어날 수 없습니다.`;
+    }
+    for (let i = 0; i < loads.length; i++) {
+       const p = Number(loads[i].pos) || 0;
+       if (p < 0 || p > length) return `하중 위치(${p}mm)는 전체 길이(0 ~ ${length}mm)를 벗어날 수 없습니다.`;
+    }
+
     return null; 
   };
 
   // ==========================================
-  // 3. API 통신 및 데이터 검증 (JSON Payload)
+  // 3. API 통신 및 해석 실행
   // ==========================================
   const handleRunAnalysis = async () => {
     const errorMsg = validateDimensions();
@@ -131,7 +129,6 @@ export default function ComponentWizard() {
       return;
     }
 
-    // ✅ 프론트엔드에서 서버로 넘길 데이터(JSON) 조립
     const analysisPayload = {
       beam_type: beamType, 
       dimensions: {
@@ -145,40 +142,51 @@ export default function ComponentWizard() {
       loads: loads.map(l => ({ pos: Number(l.pos) || 0, magnitude: Number(l.mag) || 0 }))
     };
 
-    // ✅ 개발자(스승님) 검증용 모달 띄우기
+    const blob = new Blob([JSON.stringify(analysisPayload, null, 2)], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `input_${beamType}_${new Date().getTime()}.json`; 
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
     const isConfirmed = window.confirm(
       "🚀 서버로 다음 JSON 데이터를 전송합니다. 진행하시겠습니까?\n\n" + 
       JSON.stringify(analysisPayload, null, 2)
     );
 
-    // 취소 버튼을 누르면 해석 중단
     if (!isConfirmed) return;
 
     setIsAnalyzing(true);
     setShowResult(false);
 
     try {
-      // 💡 [실제 백엔드 연동 시 주석 해제] 💡
-      /*
-      const response = await axios.post(`${API_BASE_URL}/api/analysis/component_wizard`, analysisPayload);
-      if(response.data.status === "Success") {
-         setResultData(response.data.results);
-         setShowResult(true);
-      } else {
-         alert("Nastran 해석 중 오류가 발생했습니다.");
-      }
-      */
-
-      // 현재는 UI 시뮬레이션을 위해 setTimeout 사용
       setTimeout(() => {
         setIsAnalyzing(false);
         setShowResult(true);
-        const areaVal = beamType === 'TUBE' ? Math.PI*(Math.pow(params.dim1/2,2) - Math.pow((params.dim1/2 - params.dim2), 2)) : params.dim1 * params.dim2;
+        
+        // 결과 표시용 안전한 숫자 변환
+        const d1 = Number(params.dim1) || 0;
+        const d2 = Number(params.dim2) || 0;
+        const d3 = Number(params.dim3) || 0;
+        const d4 = Number(params.dim4) || 0;
+        
+        let areaVal = 0;
+        if (beamType === 'TUBE') {
+          areaVal = Math.PI*(Math.pow(d1/2,2) - Math.pow((d1/2 - d2), 2));
+        } else if (beamType === 'I') {
+          areaVal = (d1 * d3 * 2) + ((d2 - 2 * d3) * d4);
+        } else if (beamType === 'H') {
+          areaVal = (d2 * d3 * 2) + ((d1 - 2 * d3) * d4);
+        } else {
+          areaVal = d1 * d2;
+        }
+
         setResultData({
           maxStress: Math.random() * 200 + 100, 
           maxDisp: Math.random() * 20 + 5,      
           area: areaVal || 0,
-          inertia: ((params.dim1 || 0) * Math.pow((params.dim2 || 0), 3)) / 12 
+          inertia: (d1 * Math.pow(d2, 3)) / 12 
         });
       }, 1500);
 
@@ -188,7 +196,6 @@ export default function ComponentWizard() {
       setIsAnalyzing(false);
     }
   };
-
 
   // ==========================================
   // 4. Three.js 렌더링 로직
@@ -257,7 +264,6 @@ export default function ComponentWizard() {
     fillLight.position.set(-1000, 500, -1000);
     scene.add(fillLight);
 
-    // 지우거나 텍스트 입력 중일 때 3D 엔진이 NaN 오류를 뿜지 않도록 안전하게 파싱
     const length = Number(params.length) || 0.1;
     const dim1 = Number(params.dim1) || 0.1;
     const dim2 = Number(params.dim2) || 0.1;
@@ -285,13 +291,20 @@ export default function ComponentWizard() {
       const shape = new THREE.Shape();
       const w = dim1, h = dim2, tf = dim3, tw = dim4;
 
-      if (beamType === 'H') {
+      if (beamType === 'I') {
         shape.moveTo(-w/2, -h/2); shape.lineTo(w/2, -h/2); shape.lineTo(w/2, -h/2 + tf);
         shape.lineTo(tw/2, -h/2 + tf); shape.lineTo(tw/2, h/2 - tf); shape.lineTo(w/2, h/2 - tf);
         shape.lineTo(w/2, h/2); shape.lineTo(-w/2, h/2); shape.lineTo(-w/2, h/2 - tf);
         shape.lineTo(-tw/2, h/2 - tf); shape.lineTo(-tw/2, -h/2 + tf); shape.lineTo(-w/2, -h/2 + tf);
         shape.lineTo(-w/2, -h/2);
-      } 
+      }
+      else if (beamType === 'H') {
+        shape.moveTo(-w/2, -h/2); shape.lineTo(-w/2 + tf, -h/2); shape.lineTo(-w/2 + tf, -tw/2);
+        shape.lineTo(w/2 - tf, -tw/2); shape.lineTo(w/2 - tf, -h/2); shape.lineTo(w/2, -h/2);
+        shape.lineTo(w/2, h/2); shape.lineTo(w/2 - tf, h/2); shape.lineTo(w/2 - tf, tw/2);
+        shape.lineTo(-w/2 + tf, tw/2); shape.lineTo(-w/2 + tf, h/2); shape.lineTo(-w/2, h/2);
+        shape.lineTo(-w/2, -h/2);
+      }
       else if (beamType === 'L') {
         shape.moveTo(-w/2, -h/2); shape.lineTo(w/2, -h/2); shape.lineTo(w/2, -h/2 + tf);
         shape.lineTo(-w/2 + tw, -h/2 + tf); shape.lineTo(-w/2 + tw, h/2); shape.lineTo(-w/2, h/2); shape.lineTo(-w/2, -h/2);
@@ -498,8 +511,9 @@ export default function ComponentWizard() {
               onChange={handleBeamTypeChange}
               className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-bold mb-4 outline-none focus:border-[#00E600] transition-colors cursor-pointer"
             >
+              <option value="I">I-Beam</option>
+              <option value="H">H-Beam</option>
               <option value="BAR">BAR (Solid Box)</option>
-              <option value="H">H-Beam (I-Beam)</option>
               <option value="L">L-Beam (Angle)</option>
               <option value="T">T-Beam</option>
               <option value="CHAN">Channel (C-Shape)</option>
@@ -508,30 +522,31 @@ export default function ComponentWizard() {
             </select>
 
             <div className="space-y-1">
-              <InputRow label="Length (L)" value={params.length} unit="mm" onChange={(e) => setParams({...params, length: e.target.value === '' ? '' : Number(e.target.value)})} />
+              {/* ✅ onChange에서 e.target.value 자체를 저장하도록 모두 변경 */}
+              <InputRow label="Length (L)" value={params.length} unit="mm" onChange={(e) => setParams({...params, length: e.target.value})} />
               
               {beamType === 'ROD' && (
-                <InputRow label="Diameter (D)" value={params.dim1} unit="mm" onChange={(e) => setParams({...params, dim1: e.target.value === '' ? '' : Number(e.target.value)})} />
+                <InputRow label="Diameter (D)" value={params.dim1} unit="mm" onChange={(e) => setParams({...params, dim1: e.target.value})} />
               )}
 
               {beamType === 'TUBE' && (
                 <>
-                  <InputRow label="Outer Dia (D)" value={params.dim1} unit="mm" onChange={(e) => setParams({...params, dim1: e.target.value === '' ? '' : Number(e.target.value)})} />
-                  <InputRow label="Thickness (t)" value={params.dim2} unit="mm" onChange={(e) => setParams({...params, dim2: e.target.value === '' ? '' : Number(e.target.value)})} />
+                  <InputRow label="Outer Dia (D)" value={params.dim1} unit="mm" onChange={(e) => setParams({...params, dim1: e.target.value})} />
+                  <InputRow label="Thickness (t)" value={params.dim2} unit="mm" onChange={(e) => setParams({...params, dim2: e.target.value})} />
                 </>
               )}
 
-              {['BAR', 'H', 'L', 'T', 'CHAN'].includes(beamType) && (
+              {['BAR', 'I', 'H', 'L', 'T', 'CHAN'].includes(beamType) && (
                 <>
-                  <InputRow label="Width (W)" value={params.dim1} unit="mm" onChange={(e) => setParams({...params, dim1: e.target.value === '' ? '' : Number(e.target.value)})} />
-                  <InputRow label="Height (H)" value={params.dim2} unit="mm" onChange={(e) => setParams({...params, dim2: e.target.value === '' ? '' : Number(e.target.value)})} />
+                  <InputRow label="Width (W)" value={params.dim1} unit="mm" onChange={(e) => setParams({...params, dim1: e.target.value})} />
+                  <InputRow label="Height (H)" value={params.dim2} unit="mm" onChange={(e) => setParams({...params, dim2: e.target.value})} />
                 </>
               )}
 
-              {['H', 'L', 'T', 'CHAN'].includes(beamType) && (
+              {['I', 'H', 'L', 'T', 'CHAN'].includes(beamType) && (
                 <>
-                  <InputRow label="Flange Thk (tf)" value={params.dim3} unit="mm" onChange={(e) => setParams({...params, dim3: e.target.value === '' ? '' : Number(e.target.value)})} />
-                  <InputRow label="Web Thk (tw)" value={params.dim4} unit="mm" onChange={(e) => setParams({...params, dim4: e.target.value === '' ? '' : Number(e.target.value)})} />
+                  <InputRow label="Flange Thk (tf)" value={params.dim3} unit="mm" onChange={(e) => setParams({...params, dim3: e.target.value})} />
+                  <InputRow label="Web Thk (tw)" value={params.dim4} unit="mm" onChange={(e) => setParams({...params, dim4: e.target.value})} />
                 </>
               )}
             </div>
@@ -591,7 +606,7 @@ export default function ComponentWizard() {
                   </div>
                   <div className="relative flex-1">
                     <input type="number" value={load.mag} onChange={e => {
-                      const newLoads = [...loads]; newLoads[idx].mag = e.target.value === '' ? '' : Number(e.target.value); setLoads(newLoads);
+                      const newLoads = [...loads]; newLoads[idx].mag = e.target.value; setLoads(newLoads);
                     }} className="w-full bg-transparent px-2 py-1 text-sm text-red-400 outline-none font-mono text-right pr-6" title="Magnitude (N)" />
                     <span className="absolute right-2 top-1.5 text-[10px] text-slate-500 font-mono">N</span>
                   </div>
@@ -677,11 +692,18 @@ function SectionGuide({ type }) {
   
   const getSvgContent = () => {
     switch (type) {
-      case 'H': return (
+      case 'I': return (
         <>
           <path d="M 20,20 L 80,20 M 20,80 L 80,80 M 50,20 L 50,80" {...s} strokeWidth={6} />
           <text x="45" y="15" {...t}>W</text><text x="5" y="55" {...t}>H</text>
           <text x="55" y="55" {...t}>tw</text><text x="85" y="25" {...t}>tf</text>
+        </>
+      );
+      case 'H': return (
+        <>
+          <path d="M 20,20 L 20,80 M 80,20 L 80,80 M 20,50 L 80,50" {...s} strokeWidth={6} />
+          <text x="45" y="15" {...t}>W</text><text x="5" y="55" {...t}>H</text>
+          <text x="45" y="45" {...t}>tw</text><text x="85" y="25" {...t}>tf</text>
         </>
       );
       case 'BAR': return (
