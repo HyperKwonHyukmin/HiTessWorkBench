@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
   employee_id: str
   name: str
   company: str
+  department: Optional[str] = None
   position: str
   is_active: bool = False  # 승인 여부 (로그인 시 체크)
   is_admin: bool = False  # 관리자 여부 (관리자 메뉴 표시용)
