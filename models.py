@@ -8,6 +8,7 @@ class User(Base):
   employee_id = Column(String(50), unique=True, index=True)
   name = Column(String(50))
   company = Column(String(100))
+  department = Column(String(100), nullable=True)
   position = Column(String(50))
   is_active = Column(Boolean, default=False)
   is_admin = Column(Boolean, default=False)
