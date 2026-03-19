@@ -8,8 +8,6 @@ import NewAnalysis from './pages/NewAnalysis';
 import Layout from './components/Layout';
 import { Wand2 } from 'lucide-react';
 import ComponentWizard from './pages/ComponentWizard';
-import AdminPage from './pages/AdminPage';
-import TrussAnalysis from './pages/TrussAnalysis';
 import { DashboardProvider } from './contexts/DashboardContext';
 
 // 앱의 전체 단계 정의
@@ -20,16 +18,40 @@ const APP_STATE = {
 };
 
 function App() {
-  // 1. 앱 진행 상태 (스플래시 -> 로그인 -> 메인)
   const [appState, setAppState] = useState(APP_STATE.SPLASH);
   
-  // 2. 메인 화면 내부의 현재 활성화된 메뉴 상태
-  const [currentMenu, setCurrentMenu] = useState('Dashboard');
+  // ✅ [수정됨] 단일 메뉴 상태를 히스토리 스택으로 확장
+  const [history, setHistory] = useState(['Dashboard']);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // 현재 화면은 히스토리 배열의 현재 인덱스에 위치한 메뉴
+  const currentMenu = history[currentIndex];
 
   /**
-   * 플래시 화면 종료 후 처리
-   * 로컬 스토리지에 유저 정보가 있으면 바로 메인으로, 없으면 로그인으로 이동
+   * 메뉴 이동 함수 (새로운 히스토리 추가)
    */
+  const setCurrentMenu = (menu) => {
+    // 현재 위치 이후의 미래 히스토리가 있다면 잘라내고 새 메뉴를 푸시
+    const newHistory = history.slice(0, currentIndex + 1);
+    
+    // 연속해서 동일한 메뉴로 이동하는 것은 방지
+    if (newHistory[newHistory.length - 1] !== menu) { 
+      newHistory.push(menu);
+      setHistory(newHistory);
+      setCurrentIndex(newHistory.length - 1);
+    }
+  };
+
+  // ✅ 뒤로 가기 함수
+  const goBack = () => {
+    if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
+  };
+
+  // ✅ 앞으로 가기 함수
+  const goForward = () => {
+    if (currentIndex < history.length - 1) setCurrentIndex(currentIndex + 1);
+  };
+
   const handleSplashFinish = () => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -40,18 +62,14 @@ function App() {
     }
   };
 
-  /**
-   * 로그아웃 처리
-   */
   const handleLogout = () => {
     localStorage.removeItem('user');
     setAppState(APP_STATE.LOGIN);
-    setCurrentMenu('Dashboard'); // 로그아웃 시 메뉴 초기화
+    // 로그아웃 시 히스토리 초기화
+    setHistory(['Dashboard']);
+    setCurrentIndex(0);
   };
 
-  /**
-   * 메뉴에 따른 실제 페이지 컴포넌트 렌더링 함수
-   */
   const renderPage = () => {
     switch (currentMenu) {
       case 'Dashboard':
@@ -59,14 +77,12 @@ function App() {
       case 'My Project':
         return <MyProjects />;
       case 'New Analysis':
-        // <-- setCurrentMenu 전달
-        return <NewAnalysis setCurrentMenu={setCurrentMenu} />; 
+        return <NewAnalysis setCurrentMenu={setCurrentMenu} />;
       case 'Component Wizard': 
         return <ComponentWizard />;
-      case 'Truss Analysis':
-        return <TrussAnalysis setCurrentMenu={setCurrentMenu} />;
+      // Truss Analysis가 있으면 추가
+      // case 'Truss Analysis': return <TrussAnalysis setCurrentMenu={setCurrentMenu} />;
       
-      // 아직 구현되지 않은 페이지들을 위한 공통 가이드 화면
       default:
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
@@ -87,30 +103,31 @@ function App() {
   };
 
   return (
-      <DashboardProvider>  {/* ✅ 최상위를 Provider로 감쌈 */}
-        {/* 1단계: 스플래시 화면 */}
-        {appState === APP_STATE.SPLASH && (
-          <SplashScreen onFinish={handleSplashFinish} />
-        )}
-        
-        {/* 2단계: 로그인 화면 */}
-        {appState === APP_STATE.LOGIN && (
-          <LoginScreen onLoginSuccess={() => setAppState(APP_STATE.MAIN)} />
-        )}
+    <DashboardProvider>
+      {appState === APP_STATE.SPLASH && (
+        <SplashScreen onFinish={handleSplashFinish} />
+      )}
+      
+      {appState === APP_STATE.LOGIN && (
+        <LoginScreen onLoginSuccess={() => setAppState(APP_STATE.MAIN)} />
+      )}
 
-        {/* 3단계: 메인 워크벤치 화면 (레이아웃 적용) */}
-        {appState === APP_STATE.MAIN && (
-          <Layout 
-            onLogout={handleLogout} 
-            currentMenu={currentMenu} 
-            setCurrentMenu={setCurrentMenu}
-          >
-            {/* 현재 메뉴 상태에 맞는 페이지 출력 */}
-            {renderPage()}
-          </Layout>
-        )}
-      </DashboardProvider>
-    );
+      {appState === APP_STATE.MAIN && (
+        <Layout 
+          onLogout={handleLogout} 
+          currentMenu={currentMenu} 
+          setCurrentMenu={setCurrentMenu}
+          // ✅ Layout에 뒤로가기/앞으로가기 상태와 함수 전달
+          goBack={goBack}
+          goForward={goForward}
+          canGoBack={currentIndex > 0}
+          canGoForward={currentIndex < history.length - 1}
+        >
+          {renderPage()}
+        </Layout>
+      )}
+    </DashboardProvider>
+  );
 }
 
 export default App;
