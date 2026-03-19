@@ -1,9 +1,13 @@
-// 파일 위치: src/components/Layout.jsx
 import React, { useState, useEffect } from 'react';
 import Sidebar from './Sidebar'; 
-import { LogOut, User, Bell, Search } from 'lucide-react';
+// ✅ ChevronLeft, ChevronRight 아이콘 추가
+import { LogOut, User, Bell, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function Layout({ children, onLogout, currentMenu, setCurrentMenu }) {
+// ✅ 파라미터에 goBack 등 히스토리 관련 props 추가
+export default function Layout({ 
+  children, onLogout, currentMenu, setCurrentMenu, 
+  goBack, goForward, canGoBack, canGoForward 
+}) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [userInfo, setUserInfo] = useState({
     name: 'User',
@@ -35,10 +39,40 @@ export default function Layout({ children, onLogout, currentMenu, setCurrentMenu
       <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
         <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-10">
           <div className="flex items-center gap-4 window-no-drag">
+            
+            {/* ✅ [신규] 브라우저 스타일 뒤로/앞으로 가기 버튼 그룹 */}
+            <div className="flex items-center gap-1 bg-slate-100/80 border border-slate-200 p-1 rounded-lg mr-2 hidden md:flex">
+              <button 
+                onClick={goBack} 
+                disabled={!canGoBack}
+                className={`p-1 rounded-md transition-all ${
+                  canGoBack 
+                    ? 'text-slate-600 hover:bg-white hover:shadow-sm cursor-pointer' 
+                    : 'text-slate-300 cursor-not-allowed opacity-50'
+                }`}
+                title="뒤로 가기"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button 
+                onClick={goForward} 
+                disabled={!canGoForward}
+                className={`p-1 rounded-md transition-all ${
+                  canGoForward 
+                    ? 'text-slate-600 hover:bg-white hover:shadow-sm cursor-pointer' 
+                    : 'text-slate-300 cursor-not-allowed opacity-50'
+                }`}
+                title="앞으로 가기"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+
             <h2 className="text-lg font-bold text-slate-700 hidden md:block">
               {currentMenu}
             </h2>
-            <div className="relative hidden lg:block">
+            
+            <div className="relative hidden lg:block ml-4">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
               <input type="text" placeholder="Search..." className="pl-9 pr-4 py-2 bg-slate-100 border-none rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none w-64" />
             </div>
