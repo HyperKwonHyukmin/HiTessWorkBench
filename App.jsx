@@ -8,6 +8,9 @@ import NewAnalysis from './pages/NewAnalysis';
 import Layout from './components/Layout';
 import { Wand2 } from 'lucide-react';
 import ComponentWizard from './pages/ComponentWizard';
+import AdminPage from './pages/AdminPage';
+import TrussAnalysis from './pages/TrussAnalysis';
+import { DashboardProvider } from './contexts/DashboardContext';
 
 // 앱의 전체 단계 정의
 const APP_STATE = {
@@ -24,7 +27,7 @@ function App() {
   const [currentMenu, setCurrentMenu] = useState('Dashboard');
 
   /**
-   * 스플래시 화면 종료 후 처리
+   * 플래시 화면 종료 후 처리
    * 로컬 스토리지에 유저 정보가 있으면 바로 메인으로, 없으면 로그인으로 이동
    */
   const handleSplashFinish = () => {
@@ -52,13 +55,16 @@ function App() {
   const renderPage = () => {
     switch (currentMenu) {
       case 'Dashboard':
-        return <Dashboard />;
+        return <Dashboard setCurrentMenu={setCurrentMenu} />;
       case 'My Project':
         return <MyProjects />;
       case 'New Analysis':
-        return <NewAnalysis />;
+        // <-- setCurrentMenu 전달
+        return <NewAnalysis setCurrentMenu={setCurrentMenu} />; 
       case 'Component Wizard': 
         return <ComponentWizard />;
+      case 'Truss Analysis':
+        return <TrussAnalysis setCurrentMenu={setCurrentMenu} />;
       
       // 아직 구현되지 않은 페이지들을 위한 공통 가이드 화면
       default:
@@ -81,30 +87,30 @@ function App() {
   };
 
   return (
-    <>
-      {/* 1단계: 스플래시 화면 */}
-      {appState === APP_STATE.SPLASH && (
-        <SplashScreen onFinish={handleSplashFinish} />
-      )}
-      
-      {/* 2단계: 로그인 화면 */}
-      {appState === APP_STATE.LOGIN && (
-        <LoginScreen onLoginSuccess={() => setAppState(APP_STATE.MAIN)} />
-      )}
+      <DashboardProvider>  {/* ✅ 최상위를 Provider로 감쌈 */}
+        {/* 1단계: 스플래시 화면 */}
+        {appState === APP_STATE.SPLASH && (
+          <SplashScreen onFinish={handleSplashFinish} />
+        )}
+        
+        {/* 2단계: 로그인 화면 */}
+        {appState === APP_STATE.LOGIN && (
+          <LoginScreen onLoginSuccess={() => setAppState(APP_STATE.MAIN)} />
+        )}
 
-      {/* 3단계: 메인 워크벤치 화면 (레이아웃 적용) */}
-      {appState === APP_STATE.MAIN && (
-        <Layout 
-          onLogout={handleLogout} 
-          currentMenu={currentMenu} 
-          setCurrentMenu={setCurrentMenu}
-        >
-          {/* 현재 메뉴 상태에 맞는 페이지 출력 */}
-          {renderPage()}
-        </Layout>
-      )}
-    </>
-  );
+        {/* 3단계: 메인 워크벤치 화면 (레이아웃 적용) */}
+        {appState === APP_STATE.MAIN && (
+          <Layout 
+            onLogout={handleLogout} 
+            currentMenu={currentMenu} 
+            setCurrentMenu={setCurrentMenu}
+          >
+            {/* 현재 메뉴 상태에 맞는 페이지 출력 */}
+            {renderPage()}
+          </Layout>
+        )}
+      </DashboardProvider>
+    );
 }
 
 export default App;
