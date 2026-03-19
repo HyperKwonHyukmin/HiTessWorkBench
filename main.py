@@ -1,4 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile, Form
+from fastapi.responses import FileResponse
+import urllib.parse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from . import models, schemas, database
@@ -68,6 +70,7 @@ def register_user(user: schemas.UserCreate, db: Session = Depends(database.get_d
     employee_id=user.employee_id,
     name=user.name,
     company=user.company,
+    department=user.department,
     position=user.position,
     # permissions=user.permissions,  <-- 삭제됨
     is_active=False,  # 기본값: 승인 대기
@@ -109,6 +112,28 @@ def delete_user(user_id: int, db: Session = Depends(database.get_db)):
     return {"message": "User deleted"}
 
 
+# ----------------------------------------------------
+# [추가] 사용자의 해석 이력 조회 API
+# ----------------------------------------------------
+@app.get("/api/analysis/history/{employee_id}")
+def get_analysis_history(employee_id: str, db: Session = Depends(database.get_db)):
+  # 최신순으로 정렬하여 이력 가져오기
+  history = db.query(models.Analysis).filter(models.Analysis.employee_id == employee_id).order_by(
+    models.Analysis.created_at.desc()).all()
+  return history
+
+@app.get("/api/download")
+def download_file(filepath: str):
+  # URL 인코딩된 파일 경로 디코딩
+  decoded_path = urllib.parse.unquote(filepath)
+
+  if not os.path.exists(decoded_path):
+    raise HTTPException(status_code=404, detail="파일을 찾을 수 없습니다.")
+
+  filename = os.path.basename(decoded_path)
+  return FileResponse(path=decoded_path, filename=filename, media_type='application/octet-stream')
+
+
 @app.post("/api/analysis/trussmodelbuilder")
 async def run_truss_model_builder(
         node_file: UploadFile = File(...),
@@ -129,10 +154,6 @@ async def run_truss_model_builder(
   # 3. 파일 저장 절대 경로 설정
   node_path = os.path.join(work_dir, node_file.filename)
   member_path = os.path.join(work_dir, member_file.filename)
-
-  # 결과 BDF 파일명 생성 (Node 파일명 기준)
-  bdf_filename = os.path.splitext(node_file.filename)[0] + ".bdf"
-  result_bdf_path = os.path.join(work_dir, bdf_filename)
 
   # 4. 클라이언트가 보낸 CSV 파일 실제 저장
   try:
@@ -156,6 +177,7 @@ async def run_truss_model_builder(
 
   status_msg = "Success"
   engine_output = ""
+  final_bdf_path = None
 
   # 6. 프로그램 실행 로직
   if not os.path.exists(exe_path):
@@ -164,11 +186,21 @@ async def run_truss_model_builder(
   else:
     cmd_args = [exe_path, exe_dir, node_path, member_path]
     try:
+      # 외부 EXE 실행 대기
       result = subprocess.run(cmd_args, capture_output=True, text=True, check=True)
       engine_output = result.stdout
 
-      # 성공 시 결과 파일 경로를 result_info 딕셔너리에 추가
-      result_data = {"bdf": result_bdf_path}
+      # ✅ [핵심 변경 포인트] 해석 종료 후 폴더를 스캔하여 확장자가 .bdf인 파일 찾기
+      bdf_files = [f for f in os.listdir(work_dir) if f.endswith('.bdf')]
+
+      if bdf_files:
+        # 찾은 첫 번째 bdf 파일의 절대 경로를 추출
+        final_bdf_path = os.path.join(work_dir, bdf_files[0])
+        result_data = {"bdf": final_bdf_path}
+      else:
+        # EXE가 정상 종료되었으나 bdf 파일이 없는 경우 (해석 내부 실패)
+        status_msg = "Failed"
+        engine_output += "\n[Error] Engine execution finished, but no .bdf file was created."
 
     except subprocess.CalledProcessError as e:
       status_msg = "Failed"
@@ -177,25 +209,39 @@ async def run_truss_model_builder(
       status_msg = "Failed"
       engine_output = f"System Error: {str(e)}"
 
-  # 7. DB 기록 (요청하신 열 규격에 맞춤)
-  try:
-    # 모델명 models.py에 정의하신 클래스명(예: Analysis 또는 AnalysisLog)으로 맞춰주세요.
-    new_analysis = models.Analysis(
-      project_name=f"Truss_Job_{timestamp}",  # 임시 프로젝트명
-      program_name="TrussModelBuilder",
-      employee_id=employee_id,
-      status=status_msg,
-      input_info=input_data,  # 딕셔너리가 JSON으로 자동 변환되어 저장됨
-      result_info=result_data if status_msg == "Success" else None
-    )
-    db.add(new_analysis)
-    db.commit()
-  except Exception as db_e:
-    print(f"DB 기록 오류: {str(db_e)}")
+    # 7. DB 기록
+    project_data = None
+    try:
+      new_analysis = models.Analysis(
+        project_name=f"Truss_Job_{timestamp}",
+        program_name="TrussModelBuilder",
+        employee_id=employee_id,
+        status=status_msg,
+        input_info=input_data,
+        result_info=result_data if status_msg == "Success" else None
+      )
+      db.add(new_analysis)
+      db.commit()
+      db.refresh(new_analysis)  # 생성된 ID와 시간 가져오기
 
-  # 8. 최종 응답 반환
-  return {
-    "status": status_msg,
-    "engine_log": engine_output,
-    "bdf_path": result_bdf_path if status_msg == "Success" else None
-  }
+      # 프론트엔드 모달에 띄워줄 데이터 구성
+      project_data = {
+        "id": new_analysis.id,
+        "project_name": new_analysis.project_name,
+        "program_name": new_analysis.program_name,
+        "employee_id": new_analysis.employee_id,
+        "status": new_analysis.status,
+        "input_info": new_analysis.input_info,
+        "result_info": new_analysis.result_info,
+        "created_at": new_analysis.created_at.isoformat() if new_analysis.created_at else datetime.now().isoformat()
+      }
+    except Exception as db_e:
+      print(f"DB 기록 오류: {str(db_e)}")
+
+    # 8. 최종 응답 반환
+    return {
+      "status": status_msg,
+      "engine_log": engine_output,
+      "bdf_path": final_bdf_path if status_msg == "Success" else None,
+      "project": project_data  # <--- 이 부분이 추가됨!
+    }
