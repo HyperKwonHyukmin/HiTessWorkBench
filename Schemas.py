@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
 
 
 # 1. 로그인 요청 시 받을 데이터 (사번만 받음)
@@ -12,6 +13,7 @@ class UserCreate(BaseModel):
   employee_id: str
   name: str
   company: str
+  department: str
   position: str
 
 
@@ -25,6 +27,9 @@ class UserResponse(BaseModel):
   position: str
   is_active: bool = False  # 승인 여부 (로그인 시 체크)
   is_admin: bool = False  # 관리자 여부 (관리자 메뉴 표시용)
+  login_count: int
+  last_login: Optional[datetime] = None
+  created_at: Optional[datetime] = None
 
   class Config:
     orm_mode = True  # SQLAlchemy 모델을 Pydantic으로 변환 허용
