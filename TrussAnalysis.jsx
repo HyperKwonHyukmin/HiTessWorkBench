@@ -18,7 +18,11 @@ export default function TrussAnalysis({ setCurrentMenu }) {
   const [memberData, setMemberData] = useState([]);
   const [logs, setLogs] = useState([]); 
   const [detailedLogs, setDetailedLogs] = useState([]); 
+  
   const [isRunning, setIsRunning] = useState(false);
+  const [progress, setProgress] = useState(0); // ✅ 진행도(%) 상태 가
+  const [statusMessage, setStatusMessage] = useState(''); // ✅ 현재 진행 상태 메시지 추가
+
   const [activeTab, setActiveTab] = useState('node'); 
   
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
@@ -57,16 +61,22 @@ export default function TrussAnalysis({ setCurrentMenu }) {
   const addDetailedLog = (message) => { const time = new Date().toISOString(); setDetailedLogs(prev => [...prev, `[${time}] ${message}`]); };
   const clearLogs = () => { setLogs([]); setDetailedLogs([]); };
 
+  // ========================================================
+  // ✅ 비동기 작업 큐 (Background Tasks) 실행 및 Polling 로직
+  // ========================================================
   const runAnalysis = async () => {
     if (!nodeFile || !memberFile) return;
+    
     setIsRunning(true);
+    setProgress(0);
+    setStatusMessage('서버에 작업 요청 중...');
     setAnalysisResultData(null);
     setIsResultModalOpen(false);
     setIs3DViewerOpen(false);
     setLogs([]);
     setDetailedLogs([]); 
     
-    addLog('System Check OK. Preparing Truss Model Builder...', 'info');
+    addLog('System Check OK. Requesting Analysis Job...', 'info');
     
     const userStr = localStorage.getItem('user');
     const employeeId = userStr ? JSON.parse(userStr).employee_id : 'guest';
@@ -77,35 +87,75 @@ export default function TrussAnalysis({ setCurrentMenu }) {
     formData.append('employee_id', employeeId);
 
     try {
-      addLog('Uploading CSV files to server...', 'warning');
-      const response = await axios.post(`${API_BASE_URL}/api/analysis/trussmodelbuilder`, formData, {
+      // 1. 작 요청 API 호출 (즉시 job_id 반환)
+      const requestRes = await axios.post(`${API_BASE_URL}/api/analysis/truss/request`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      if (response.data.status === "Success") {
-        addLog('MODEL BUILDING COMPLETED SUCCESSFULLY.', 'success');
-        addLog('결과가 DB에 기록되었습니다.', 'info');
-        addDetailedLog('*** HITESS WORKBENCH SOLVER OUTPUT ***');
-        addDetailedLog(response.data.engine_log);
-        setAnalysisResultData(response.data.project);
-      } else {
-        addLog('ENGINE EXECUTION FAILED.', 'error');
-        addDetailedLog(response.data.engine_log);
-      }
+      const jobId = requestRes.data.job_id;
+      if (!jobId) throw new Error("서버로부터 Job ID를 받지 못했습니다.");
+
+      addLog(`Job submitted successfully. [Job ID: ${jobId}]`, 'info');
+      let lastMsg = '';
+
+      // 2. 1.5초마다 작업 상태 조회 (Polling)
+      const pollInterval = setInterval(async () => {
+        try {
+          const statusRes = await axios.get(`${API_BASE_URL}/api/analysis/status/${jobId}`);
+          const { status, progress, message, engine_log, project } = statusRes.data;
+
+          // 상태 및 진행도 UI 업데이트
+          setProgress(progress);
+          setStatusMessage(message);
+
+          // 로그 창 도배 방지를 위해 메시지가 바뀔 때만 콘솔에 기록
+          if (message !== lastMsg) {
+             addLog(`[${progress}%] ${message}`, 'warning');
+             lastMsg = message;
+          }
+
+          // 3. 작업이 끝났을 경우 (성공 or 실패) 루프 종료
+          if (status === 'Success' || status === 'Failed') {
+            clearInterval(pollInterval);
+            setIsRunning(false);
+            
+            if (status === 'Success') {
+              addLog('MODEL BUILDING COMPLETED SUCCESSFULLY.', 'success');
+              addLog('결과가 DB에 기록되었습니다.', 'info');
+              
+              if (engine_log) {
+                addDetailedLog('*** HITESS WORKBENCH SOLVER OUTPUT ***');
+                addDetailedLog(engine_log);
+              }
+              setAnalysisResultData(project); // DB에서 넘어온 프로젝트 결과 데이터 세팅
+            } else {
+              addLog('ENGINE EXECUTION FAILED.', 'error');
+              if (engine_log) addDetailedLog(engine_log);
+            }
+          }
+        } catch (pollError) {
+          console.error("Polling Error:", pollError);
+          clearInterval(pollInterval);
+          setIsRunning(false);
+          addLog('STATUS CHECK FAILED.', 'error');
+        }
+      }, 1500); // 1.5초 주기
+
     } catch (error) {
       addLog('SERVER COMMUNICATION FAILED.', 'error');
       addDetailedLog(error.response ? `SERVER ERROR [${error.response.status}]` : `NETWORK ERROR: ${error.message}`);
-    } finally {
       setIsRunning(false);
     }
   };
 
   const canRun = nodeFile && memberFile && !isRunning;
+  
   const downloadSummaryLog = () => {
     if (logs.length === 0) return alert('다운로드할 로그가 없습니다.');
     const logText = logs.map(l => `[${l.time}] ${l.message}`).join('\n');
     downloadFile(logText, `Summary_Log_${new Date().getTime()}.txt`);
   };
+  
   const downloadDetailedLog = () => {
     if (detailedLogs.length === 0) return alert('상세 로그가 없습니다.');
     const logText = detailedLogs.join('\n');
@@ -128,10 +178,10 @@ export default function TrussAnalysis({ setCurrentMenu }) {
       {/* Header Area */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <button onClick={() => setCurrentMenu('New Analysis')} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-[#002554] hover:bg-slate-50 transition-colors cursor-pointer"><ArrowLeft size={20} /></button>
+          <button onClick={() => setCurrentMenu('File-Based Analysis')} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-[#002554] hover:bg-slate-50 transition-colors cursor-pointer"><ArrowLeft size={20} /></button>
           <div>
             <h1 className="text-2xl font-bold text-[#002554] tracking-tight">Truss Model Builder</h1>
-            <p className="text-sm text-slate-500 mt-1">Node 및 Member CSV 데이터를 기반으로 구조 해석 모델을 구축합니다.</p>
+            <p className="text-sm text-slate-500 mt-1">Node 및 Member CSV 데이터를 기반으로 구조 해석 모델을 비동기로 구축합니다.</p>
           </div>
         </div>
       </div>
@@ -169,9 +219,32 @@ export default function TrussAnalysis({ setCurrentMenu }) {
           </div>
 
           <div className="flex flex-col gap-2">
-            <button onClick={runAnalysis} disabled={!canRun} className={`w-full py-4 rounded-xl text-lg font-bold flex items-center justify-center gap-3 transition-all duration-300 shadow-lg ${!canRun ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : isRunning ? 'bg-blue-600 text-white cursor-wait' : 'bg-[#002554] hover:bg-[#003366] text-white hover:-translate-y-1 cursor-pointer'}`}>
-              {isRunning ? <RefreshCw className="animate-spin" size={24} /> : <Play size={24} fill="currentColor" />}
-              {isRunning ? 'Building Model...' : 'Run Model Builder'}
+            
+            {/* ✅ Run Button with Interactive Progress Bar */}
+            <button 
+              onClick={runAnalysis} 
+              disabled={!canRun} 
+              className={`relative w-full py-4 rounded-xl text-lg font-bold flex items-center justify-center gap-3 transition-all duration-300 shadow-lg overflow-hidden ${
+                !canRun 
+                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' 
+                  : isRunning 
+                    ? 'bg-[#001b3d] text-white cursor-wait' // Running 시 바탕색 어둡게
+                    : 'bg-[#002554] hover:bg-[#003366] text-white hover:-translate-y-1 cursor-pointer'
+              }`}
+            >
+              {/* 프로그레스 바 배경 */}
+              {isRunning && (
+                <div 
+                  className="absolute left-0 top-0 bottom-0 bg-blue-600 transition-all duration-500 ease-out opacity-80" 
+                  style={{ width: `${progress}%` }}
+                ></div>
+              )}
+              
+              {/* 버튼 텍스트 (z-index로 위로 올림) */}
+              <div className="relative z-10 flex items-center gap-3 drop-shadow-md">
+                {isRunning ? <RefreshCw className="animate-spin" size={24} /> : <Play size={24} fill="currentColor" />}
+                {isRunning ? `${progress}% - ${statusMessage || 'Building...'}` : 'Run Async Model Builder'}
+              </div>
             </button>
             
             {/* 성공 시 나타나는 조작 버튼들 */}
@@ -229,7 +302,7 @@ export default function TrussAnalysis({ setCurrentMenu }) {
             <Dialog.Panel className="w-full max-w-5xl h-[80vh] flex flex-col rounded-2xl bg-[#0F172A] border border-slate-700">
               <div className="bg-slate-800 px-6 py-4 flex justify-between items-center border-b border-slate-700 shrink-0">
                 <Dialog.Title as="h3" className="text-lg font-bold text-white flex items-center gap-2"><FileText className="text-blue-400" /> Detailed System Log</Dialog.Title>
-                <button onClick={() => setIsLogModalOpen(false)} className="text-slate-400 hover:text-white"><X size={24} /></button>
+                <button onClick={() => setIsLogModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer"><X size={24} /></button>
               </div>
               <div className="flex-1 p-6 overflow-auto bg-black font-mono text-xs text-slate-300 whitespace-pre-wrap">
                 {detailedLogs.join('\n')}
@@ -239,10 +312,10 @@ export default function TrussAnalysis({ setCurrentMenu }) {
         </Dialog>
       </Transition>
 
-      {/* ✅ 모달 2: 결과 다운로드 (My Project 모달과 100% 동일) */}
+      {/* 모달 2: 결과 다운로드 */}
       <ProjectDetailModal project={isResultModalOpen ? analysisResultData : null} onClose={() => setIsResultModalOpen(false)} />
       
-      {/* 모달 3: 외부 파일로 분리된 3D BDF 뷰어 */}
+      {/* 모달 3: 3D BDF 뷰어 */}
       <BdfViewerModal isOpen={is3DViewerOpen} project={analysisResultData} onClose={() => setIs3DViewerOpen(false)} />
 
     </div>
@@ -273,7 +346,6 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-// ✅ [완벽 복제] MyProjects.jsx와 100% 동일한 다운로드 모달
 const ProjectDetailModal = ({ project, onClose }) => {
   if (!project) return null;
 
@@ -314,7 +386,7 @@ const ProjectDetailModal = ({ project, onClose }) => {
             <h2 className="text-xl font-bold leading-tight">{project.project_name || 'Unnamed Project'}</h2>
             <p className="text-blue-200 text-xs mt-1 font-mono">{project.program_name}</p>
           </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-white/70 hover:text-white transition-colors cursor-pointer">
             <X size={24} />
           </button>
         </div>
