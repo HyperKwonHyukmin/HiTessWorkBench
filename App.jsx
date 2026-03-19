@@ -9,6 +9,10 @@ import Layout from './components/Layout';
 import { Wand2 } from 'lucide-react';
 import ComponentWizard from './pages/ComponentWizard';
 import { DashboardProvider } from './contexts/DashboardContext';
+import InteractiveApps from './pages/InteractiveApps';
+
+// ✅ 1. TrussAnalysis 컴포넌트 임포트 (경로는 프로젝트에 맞게 확인)
+import TrussAnalysis from './pages/TrussAnalysis'; 
 
 // 앱의 전체 단계 정의
 const APP_STATE = {
@@ -20,21 +24,13 @@ const APP_STATE = {
 function App() {
   const [appState, setAppState] = useState(APP_STATE.SPLASH);
   
-  // ✅ [수정됨] 단일 메뉴 상태를 히스토리 스택으로 확장
   const [history, setHistory] = useState(['Dashboard']);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // 현재 화면은 히스토리 배열의 현재 인덱스에 위치한 메뉴
   const currentMenu = history[currentIndex];
 
-  /**
-   * 메뉴 이동 함수 (새로운 히스토리 추가)
-   */
   const setCurrentMenu = (menu) => {
-    // 현재 위치 이후의 미래 히스토리가 있다면 잘라내고 새 메뉴를 푸시
     const newHistory = history.slice(0, currentIndex + 1);
-    
-    // 연속해서 동일한 메뉴로 이동하는 것은 방지
     if (newHistory[newHistory.length - 1] !== menu) { 
       newHistory.push(menu);
       setHistory(newHistory);
@@ -42,12 +38,10 @@ function App() {
     }
   };
 
-  // ✅ 뒤로 가기 함수
   const goBack = () => {
     if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
   };
 
-  // ✅ 앞으로 가기 함수
   const goForward = () => {
     if (currentIndex < history.length - 1) setCurrentIndex(currentIndex + 1);
   };
@@ -65,7 +59,6 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('user');
     setAppState(APP_STATE.LOGIN);
-    // 로그아웃 시 히스토리 초기화
     setHistory(['Dashboard']);
     setCurrentIndex(0);
   };
@@ -74,16 +67,27 @@ function App() {
     switch (currentMenu) {
       case 'Dashboard':
         return <Dashboard setCurrentMenu={setCurrentMenu} />;
-      case 'My Project':
-        return <MyProjects />;
+        
+     // ✅ 1. File-Based Analysis 허브
       case 'New Analysis':
+      case 'File-Based Analysis': 
         return <NewAnalysis setCurrentMenu={setCurrentMenu} />;
-      case 'Component Wizard': 
+      
+      case 'Truss Analysis': 
+        return <TrussAnalysis setCurrentMenu={setCurrentMenu} />;
+
+      // ✅ 2. Interactive Apps 허브
+      case 'Interactive Apps': 
+        return <InteractiveApps setCurrentMenu={setCurrentMenu} />;
+      
+      // ✅ 3. Simple Beam Analyzer 앱 실행 (기존 Component Wizard 재활용)
+      case 'Simple Beam Analyzer':
+      case 'Component Wizard':
         return <ComponentWizard />;
-      // Truss Analysis가 있으면 추가
-      // case 'Truss Analysis': return <TrussAnalysis setCurrentMenu={setCurrentMenu} />;
       
       default:
+        // 아직 컴포넌트가 만들어지지 않은 신규 메뉴들(AI Lab Assistant, Notice 등)을 눌렀을 때
+        // 에러가 나지 않고 "준비 중입니다" 화면이 깔끔하게 뜨게 해주는 방어막 역할이네!
         return (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
             <div className="p-6 bg-slate-100 rounded-full mb-4">
@@ -117,7 +121,6 @@ function App() {
           onLogout={handleLogout} 
           currentMenu={currentMenu} 
           setCurrentMenu={setCurrentMenu}
-          // ✅ Layout에 뒤로가기/앞으로가기 상태와 함수 전달
           goBack={goBack}
           goForward={goForward}
           canGoBack={currentIndex > 0}
