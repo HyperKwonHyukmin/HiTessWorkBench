@@ -106,29 +106,37 @@ export default function ComponentWizard() {
       if (dim4 >= dim1) return `Web 두께(tw: ${dim4})는 전체 폭(W: ${dim1})보다 작아야 합니다.`;
     }
 
-    // ✅ 여기서 Boundary와 Load의 위치가 Length를 초과하는지 최종 검사합니다.
+    // ✅ Boundary(경계조건) 위치가 부재 길이(Length)를 벗어나는지 철저히 검사
     for (let i = 0; i < boundaries.length; i++) {
        const p = Number(boundaries[i].pos) || 0;
-       if (p < 0 || p > length) return `경계조건 위치(${p}mm)는 전체 길이(0 ~ ${length}mm)를 벗어날 수 없습니다.`;
+       if (p < 0 || p > length) {
+         return `[경계조건 위치 오류]\n경계조건의 위치(${p}mm)는 전체 부재 길이(0 ~ ${length}mm)를 벗어날 수 없습니다.`;
+       }
     }
+    
+    // ✅ Load(하중) 위치가 부재 길이(Length)를 벗어나는지 철저히 검사
     for (let i = 0; i < loads.length; i++) {
        const p = Number(loads[i].pos) || 0;
-       if (p < 0 || p > length) return `하중 위치(${p}mm)는 전체 길이(0 ~ ${length}mm)를 벗어날 수 없습니다.`;
+       if (p < 0 || p > length) {
+         return `[하중 위치 오류]\n하중의 위치(${p}mm)는 전체 부재 길이(0 ~ ${length}mm)를 벗어날 수 없습니다.`;
+       }
     }
 
-    return null; 
+    return null; // 모든 검증을 통과하면 null 반환
   };
 
   // ==========================================
   // 3. API 통신 및 해석 실행
   // ==========================================
   const handleRunAnalysis = async () => {
+    // 1. 여기서 검증을 먼저 수행하고 에러가 있으면 바로 알림창을 띄우고 종료(return)
     const errorMsg = validateDimensions();
     if (errorMsg) {
-      alert(`[입력 오류]\n${errorMsg}`);
-      return;
+      alert(errorMsg); 
+      return; 
     }
 
+    // 검증을 무사히 통과했을 때만 아래의 데이터 전송 로직이 실행됨
     const analysisPayload = {
       beam_type: beamType, 
       dimensions: {
