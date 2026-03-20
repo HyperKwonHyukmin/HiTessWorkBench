@@ -4,7 +4,7 @@ import { Dialog, Transition } from '@headlessui/react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config';
 
-export default function FeatureRequests() {
+export default function UserRequests() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [requests, setRequests] = useState([]);
@@ -13,7 +13,13 @@ export default function FeatureRequests() {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedReq, setSelectedReq] = useState(null);
   
-  const [formData, setFormData] = useState({ title: '', content: '' });
+  // ✅ 모듈과 중요도 상태 추가
+  const [formData, setFormData] = useState({ 
+    module: '공통 (UI / UX / Dashboard)', 
+    priority: '보통 (업무 효율성 향상)', 
+    title: '', 
+    content: '' 
+  });
   const [adminReply, setAdminReply] = useState({ status: 'Under Review', admin_comment: '' });
 
   useEffect(() => {
@@ -30,16 +36,16 @@ export default function FeatureRequests() {
     try {
       const res = await axios.get(`${API_BASE_URL}/api/feature-requests`);
       setRequests(res.data);
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("데이터 로드 실패", err); }
   };
 
   const handleUpvote = async (id) => {
     try { await axios.put(`${API_BASE_URL}/api/feature-requests/${id}/upvote`); fetchRequests(); } 
-    catch (err) { console.error(err); }
+    catch (err) { console.error("추천 실패", err); }
   };
 
   const openWriteModal = () => {
-    setFormData({ title: '', content: '' });
+    setFormData({ module: '공통 (UI / UX / Dashboard)', priority: '보통 (업무 효율성 향상)', title: '', content: '' });
     setIsWriteModalOpen(true);
   };
 
@@ -52,20 +58,31 @@ export default function FeatureRequests() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if(!currentUser) { alert("로그인이 필요합니다."); return; }
+    
     try {
+      // ✅ 백엔드 DB 수정 없이 모듈과 중요도를 본문에 깔끔하게 병합하여 전송
+      const finalContent = `[관련 모듈: ${formData.module}]\n[희망 중요도: ${formData.priority}]\n\n${formData.content}`;
+      
       await axios.post(`${API_BASE_URL}/api/feature-requests`, {
-        ...formData, author_id: currentUser.employee_id, author_name: currentUser.name
+        title: formData.title,
+        content: finalContent,
+        author_id: currentUser.employee_id,
+        author_name: currentUser.name
       });
-      setIsWriteModalOpen(false); fetchRequests();
-    } catch (err) { alert("요청 제출 실패"); }
+      setIsWriteModalOpen(false); 
+      fetchRequests();
+    } catch (err) { 
+      // 에러 상세 내용을 띄워 디버깅을 용이하게 함
+      alert("요청 제출 실패: " + (err.response?.data?.detail || err.message)); 
+    }
   };
 
   const handleDelete = async () => {
-    if(!window.confirm("게시글을 삭제하시겠습니까?")) return;
+    if(!window.confirm("게시글을 삭제하시습니까?")) return;
     try {
       await axios.delete(`${API_BASE_URL}/api/feature-requests/${selectedReq.id}`);
       setIsViewModalOpen(false); fetchRequests();
-    } catch (err) { alert("삭제 실패"); }
+    } catch (err) { alert("삭제 실패: " + err.message); }
   };
 
   const handleAdminReplySave = async () => {
@@ -73,7 +90,7 @@ export default function FeatureRequests() {
       await axios.put(`${API_BASE_URL}/api/feature-requests/${selectedReq.id}/comment`, adminReply);
       alert("관리자 답변이 저장되었습니다.");
       setIsViewModalOpen(false); fetchRequests();
-    } catch (err) { alert("저장 실패"); }
+    } catch (err) { alert("저장 실패: " + err.message); }
   };
 
   const statusColors = {
@@ -86,7 +103,7 @@ export default function FeatureRequests() {
     <div className="max-w-7xl mx-auto pb-10 animate-fade-in-up">
       <div className="flex justify-between items-end mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-[#002554] flex items-center gap-3"><Lightbulb className="text-yellow-500" size={32} /> Feature Requests</h1>
+          <h1 className="text-3xl font-bold text-[#002554] flex items-center gap-3"><Lightbulb className="text-yellow-500" size={32} /> User Requests</h1>
           <p className="text-slate-500 mt-2">필요한 기능이나 개선사항을 제안해 주세요. 모든 사용자가 작성할 수 있습니다.</p>
         </div>
         <button onClick={openWriteModal} className="flex items-center gap-2 px-4 py-2 bg-[#00E600] text-[#002554] rounded-lg text-sm font-bold shadow-md cursor-pointer hover:bg-[#00c200] transition-colors">
@@ -117,6 +134,7 @@ export default function FeatureRequests() {
         ))}
       </div>
 
+      {/* --- 작성 모달 --- */}
       <Transition appear show={isWriteModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsWriteModalOpen(false)}>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
@@ -125,7 +143,7 @@ export default function FeatureRequests() {
               <div className="bg-[#00E600] p-5 flex justify-between items-center text-[#002554]">
                 <div>
                   <Dialog.Title className="font-extrabold text-lg flex items-center gap-2"><Lightbulb size={20} /> 시스템 기능 개선 제안</Dialog.Title>
-                  <p className="text-xs font-bold text-[#002554]/70 mt-1">여러분의 아이디어가 더 나은 워크벤치를 만듭니다.</p>
+                  <p className="text-xs font-bold text-[#002554]/70 mt-1">여러의 아이디어가 더 나은 워크벤치를 만듭니다.</p>
                 </div>
                 <button onClick={() => setIsWriteModalOpen(false)} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors cursor-pointer"><X size={24}/></button>
               </div>
@@ -133,13 +151,13 @@ export default function FeatureRequests() {
                 <div className="flex gap-4">
                   <div className="w-1/2">
                     <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Tag size={12}/> 관련 모듈</label>
-                    <select className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-green-500 bg-white text-sm font-bold text-slate-700">
+                    <select value={formData.module} onChange={e=>setFormData({...formData, module: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-green-500 bg-white text-sm font-bold text-slate-700 cursor-pointer">
                       <option>공통 (UI / UX / Dashboard)</option><option>Truss Analysis</option><option>Pipe Analysis</option><option>Interactive Apps</option>
                     </select>
                   </div>
                   <div className="w-1/2">
                     <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Flag size={12}/> 희망 중요도</label>
-                    <select className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-green-500 bg-white text-sm font-bold text-slate-700">
+                    <select value={formData.priority} onChange={e=>setFormData({...formData, priority: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-green-500 bg-white text-sm font-bold text-slate-700 cursor-pointer">
                       <option>낮음 (있으면 좋음)</option><option>보통 (업무 효율성 향상)</option><option>높음 (핵심 기능 버그/부재)</option>
                     </select>
                   </div>
@@ -152,7 +170,7 @@ export default function FeatureRequests() {
                   <label className="block text-xs font-bold text-slate-500 mb-1">상세 제안 내용 (Description)</label>
                   <div className="bg-white rounded-lg border border-slate-200 focus-within:border-green-500 overflow-hidden">
                     <textarea required placeholder="현재의 불편한 점과 개선점을 상세히 적어주세요." value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full h-40 p-4 outline-none resize-none text-sm text-slate-700 leading-relaxed" />
-                    <div className="bg-slate-50 border-t border-slate-100 p-2 text-xs text-slate-400 font-mono text-right">* 제출된 제은 운영진 검토 후 Status가 변경됩니다.</div>
+                    <div className="bg-slate-50 border-t border-slate-100 p-2 text-xs text-slate-400 font-mono text-right">* 제출된 제안은 운영진 검토 후 Status가 변경됩니다.</div>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
@@ -165,6 +183,7 @@ export default function FeatureRequests() {
         </Dialog>
       </Transition>
 
+      {/* --- 상세 조회 및 관리자 피드백 모달 --- */}
       <Transition appear show={isViewModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsViewModalOpen(false)}>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
@@ -182,7 +201,7 @@ export default function FeatureRequests() {
               <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
                 <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed">{selectedReq?.content}</div>
                 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 shrink-0">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 shrink-0 mt-8">
                   <h4 className="text-xs font-bold text-indigo-600 mb-3 flex items-center gap-1"><MessageCircle size={14}/> Admin Feedback</h4>
                   {isAdmin ? (
                      <div className="space-y-3">
