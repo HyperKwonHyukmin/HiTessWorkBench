@@ -11,6 +11,7 @@ from datetime import datetime
 import psutil
 import time
 from sqlalchemy import text
+from pydantic import BaseModel  # [NEW] AI ChatRequest 스키마용
 
 # DB 테이블 자동 생성
 models.Base.metadata.create_all(bind=database.engine)
@@ -36,7 +37,7 @@ app.add_middleware(
 # ==========================================
 SERVER_VERSION = "1.0.0"
 
-# ✅ 비동기 작업 진행도를 저장할 메모리 저장소 (딕셔너리)
+# ✅ 비동기 작업 진도를 저장할 메모리 저장소 (딕셔너리)
 # 실제 상화 시에는 Redis로 교체하는 것이 가장 좋습니다.
 job_status_store = {}
 
@@ -282,11 +283,12 @@ async def request_truss_analysis(
 
   # 백그라운드 워커에 일거리 투척!
   background_tasks.add_task(
-    task_execute_truss, job_id, node_path, member_path, work_dir, exe_path, exe_dir, employee_id, timestamp,source
+    task_execute_truss, job_id, node_path, member_path, work_dir, exe_path, exe_dir, employee_id, timestamp, source
   )
 
   # 서버는 브라우저를 잡고 있지 않고 즉시 ID만 돌려줌
   return {"job_id": job_id}
+
 
 # ==============================================================================
 # [NEW] Support & Community API (CRUD)
@@ -295,139 +297,214 @@ async def request_truss_analysis(
 # ----------------- Notice (공지사항) -----------------
 @app.get("/api/notices", response_model=list[schemas.NoticeResponse])
 def get_notices(db: Session = Depends(database.get_db)):
-    return db.query(models.Notice).order_by(models.Notice.is_pinned.desc(), models.Notice.created_at.desc()).all()
+  return db.query(models.Notice).order_by(models.Notice.is_pinned.desc(), models.Notice.created_at.desc()).all()
+
 
 @app.post("/api/notices", response_model=schemas.NoticeResponse)
 def create_notice(notice: schemas.NoticeCreate, db: Session = Depends(database.get_db)):
-    new_notice = models.Notice(**notice.dict())
-    db.add(new_notice)
-    db.commit()
-    db.refresh(new_notice)
-    return new_notice
+  new_notice = models.Notice(**notice.dict())
+  db.add(new_notice)
+  db.commit()
+  db.refresh(new_notice)
+  return new_notice
+
 
 @app.put("/api/notices/{notice_id}", response_model=schemas.NoticeResponse)
 def update_notice(notice_id: int, notice: schemas.NoticeCreate, db: Session = Depends(database.get_db)):
-    db_notice = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
-    for key, value in notice.dict().items():
-        setattr(db_notice, key, value)
-    db.commit()
-    db.refresh(db_notice)
-    return db_notice
+  db_notice = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
+  for key, value in notice.dict().items():
+    setattr(db_notice, key, value)
+  db.commit()
+  db.refresh(db_notice)
+  return db_notice
+
 
 @app.delete("/api/notices/{notice_id}")
 def delete_notice(notice_id: int, db: Session = Depends(database.get_db)):
-    db_notice = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
-    db.delete(db_notice)
-    db.commit()
-    return {"message": "Deleted"}
+  db_notice = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
+  db.delete(db_notice)
+  db.commit()
+  return {"message": "Deleted"}
+
 
 # ----------------- Feature Request (기능 요청) -----------------
 @app.get("/api/feature-requests", response_model=list[schemas.FeatureRequestResponse])
 def get_feature_requests(db: Session = Depends(database.get_db)):
-    return db.query(models.FeatureRequest).order_by(models.FeatureRequest.upvotes.desc(), models.FeatureRequest.created_at.desc()).all()
+  return db.query(models.FeatureRequest).order_by(models.FeatureRequest.upvotes.desc(),
+                                                  models.FeatureRequest.created_at.desc()).all()
+
 
 @app.post("/api/feature-requests", response_model=schemas.FeatureRequestResponse)
 def create_feature_request(req: schemas.FeatureRequestCreate, db: Session = Depends(database.get_db)):
-    new_req = models.FeatureRequest(**req.dict())
-    db.add(new_req)
-    db.commit()
-    db.refresh(new_req)
-    return new_req
+  new_req = models.FeatureRequest(**req.dict())
+  db.add(new_req)
+  db.commit()
+  db.refresh(new_req)
+  return new_req
+
 
 # [복구됨] 따봉(추천) 기능 API
 @app.put("/api/feature-requests/{req_id}/upvote")
 def upvote_feature_request(req_id: int, db: Session = Depends(database.get_db)):
-    req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
-    if req:
-        req.upvotes += 1
-        db.commit()
-    return {"message": "Upvoted"}
+  req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
+  if req:
+    req.upvotes += 1
+    db.commit()
+  return {"message": "Upvoted"}
+
 
 @app.put("/api/feature-requests/{req_id}/comment")
-def comment_feature_request(req_id: int, comment_data: schemas.FeatureRequestComment, db: Session = Depends(database.get_db)):
-    req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
-    if req:
-        req.status = comment_data.status
-        req.admin_comment = comment_data.admin_comment
-        req.comments_count = 1 if comment_data.admin_comment else 0
-        db.commit()
-        db.refresh(req)
-    return req
+def comment_feature_request(req_id: int, comment_data: schemas.FeatureRequestComment,
+                            db: Session = Depends(database.get_db)):
+  req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
+  if req:
+    req.status = comment_data.status
+    req.admin_comment = comment_data.admin_comment
+    req.comments_count = 1 if comment_data.admin_comment else 0
+    db.commit()
+    db.refresh(req)
+  return req
+
 
 @app.delete("/api/feature-requests/{req_id}")
 def delete_feature_request(req_id: int, db: Session = Depends(database.get_db)):
-    req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
-    if req:
-        db.delete(req)
-        db.commit()
-    return {"message": "Deleted"}
+  req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
+  if req:
+    db.delete(req)
+    db.commit()
+  return {"message": "Deleted"}
+
 
 # ----------------- User Guide (사용자 가이드) -----------------
 @app.get("/api/user-guides", response_model=list[schemas.UserGuideResponse])
 def get_user_guides(db: Session = Depends(database.get_db)):
-    return db.query(models.UserGuide).order_by(models.UserGuide.category, models.UserGuide.created_at).all()
+  return db.query(models.UserGuide).order_by(models.UserGuide.category, models.UserGuide.created_at).all()
+
 
 @app.post("/api/user-guides", response_model=schemas.UserGuideResponse)
 def create_user_guide(guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
-    new_guide = models.UserGuide(**guide.dict())
-    db.add(new_guide)
-    db.commit()
-    db.refresh(new_guide)
-    return new_guide
+  new_guide = models.UserGuide(**guide.dict())
+  db.add(new_guide)
+  db.commit()
+  db.refresh(new_guide)
+  return new_guide
+
 
 @app.put("/api/user-guides/{guide_id}")
 def update_user_guide(guide_id: int, guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
-    db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
-    if db_guide:
-        for key, value in guide.dict().items():
-            setattr(db_guide, key, value)
-        db.commit()
-        db.refresh(db_guide)
-    return db_guide
+  db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
+  if db_guide:
+    for key, value in guide.dict().items():
+      setattr(db_guide, key, value)
+    db.commit()
+    db.refresh(db_guide)
+  return db_guide
+
 
 @app.delete("/api/user-guides/{guide_id}")
 def delete_user_guide(guide_id: int, db: Session = Depends(database.get_db)):
-    db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
-    if db_guide:
-        db.delete(db_guide)
-        db.commit()
-    return {"message": "Deleted"}
+  db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
+  if db_guide:
+    db.delete(db_guide)
+    db.commit()
+  return {"message": "Deleted"}
+
 
 # ==============================================================================
 # [NEW] System Monitoring API (Real-time)
 # ==============================================================================
 @app.get("/api/system/status")
 def get_system_status(db: Session = Depends(database.get_db)):
-    # 1. CPU 사용량 (현재 순간의 % 반환)
-    cpu_usage = psutil.cpu_percent(interval=0.1)
+  # 1. CPU 사용량 (현재 순간의 % 반환)
+  cpu_usage = psutil.cpu_percent(interval=0.1)
 
-    # 2. 메모리 사용량 (GB 단위로 변환)
-    mem = psutil.virtual_memory()
-    mem_used_gb = round(mem.used / (1024 ** 3), 1)
-    mem_total_gb = round(mem.total / (1024 ** 3), 1)
+  # 2. 메모리 사용량 (GB 단위로 변환)
+  mem = psutil.virtual_memory()
+  mem_used_gb = round(mem.used / (1024 ** 3), 1)
+  mem_total_gb = round(mem.total / (1024 ** 3), 1)
 
-    # 3. DB 연결 상태 및 응답 속도 (Latency) 측정
+  # 3. DB 연결 상태 및 응답 속도 (Latency) 측정
+  db_status = "Disconnected"
+  latency_ms = 0
+  try:
+    start_time = time.time()
+    # 간단한 쿼리로 DB 생존 여부 확인
+    db.execute(text("SELECT 1"))
+    latency_ms = round((time.time() - start_time) * 1000)
+    db_status = "Connected"
+  except Exception:
     db_status = "Disconnected"
     latency_ms = 0
-    try:
-        start_time = time.time()
-        # 간단한 쿼리로 DB 생존 여부 확인
-        db.execute(text("SELECT 1"))
-        latency_ms = round((time.time() - start_time) * 1000)
-        db_status = "Connected"
-    except Exception:
-        db_status = "Disconnected"
-        latency_ms = 0
 
-    return {
-        "cpu_usage": cpu_usage,
-        "memory_used_gb": mem_used_gb,
-        "memory_total_gb": mem_total_gb,
-        "db_status": db_status,
-        "latency_ms": latency_ms
-    }
+  return {
+    "cpu_usage": cpu_usage,
+    "memory_used_gb": mem_used_gb,
+    "memory_total_gb": mem_total_gb,
+    "db_status": db_status,
+    "latency_ms": latency_ms
+  }
+
 
 @app.get("/api/analysis/all")
 def get_all_analysis_history(db: Session = Depends(database.get_db)):
-    """관리자용 전체 해석 이력 조회"""
-    return db.query(models.Analysis).order_by(models.Analysis.created_at.desc()).all()
+  """관리자용 전체 해석 이력 조회"""
+  return db.query(models.Analysis).order_by(models.Analysis.created_at.desc()).all()
+
+
+# ==============================================================================
+# [NEW] AI Assistant (RAG Chatbot) API
+# ==============================================================================
+class ChatRequest(BaseModel):
+  question: str
+
+
+@app.post("/api/ai/chat")
+def ai_chat(req: ChatRequest):
+  """React에서 질문을 받아 LLM(chain.py)을 통해 답변을 반환합니다."""
+  try:
+    # 실제 chain.py 안에 정의된 메인 답변 생성 함수인 'query'를 불러옵니다.
+    from .AI.chain import query
+
+    # query 함수는 답변(answer)과 출처(docs) 두 가지를 반환합니다.
+    answer, docs = query(req.question)
+
+    return {"answer": answer}
+  except Exception as e:
+    print(f"AI Chat Error: {e}")
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/ai/ingest")
+def ai_ingest(background_tasks: BackgroundTasks):
+  """React에서 버튼을 누르면 백그라운드에서 ingest.py를 실행합니다."""
+  try:
+    # 실제 ingest.py 안에 있는 함수 이름인 'main'을 가져와서 실행합니다.
+    from .AI.ingest import main as ingest_documents
+
+    # BackgroundTasks를 사용하면 브라우저가 멈추지 않고 즉시 응답을 받습니다.
+    background_tasks.add_task(ingest_documents)
+    return {"message": "지식 DB 학습(Ingest)이 백그라운드에서 시작되었습니다."}
+  except Exception as e:
+    print(f"AI Ingest Error: {e}")
+    raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/ai/documents")
+def get_ai_documents():
+  """학습된 문서(doc_summaries.json)의 메타데이터 및 상태를 반환합니다."""
+  try:
+    from .AI.config import VECTORSTORE_DIR
+    import json
+    import os
+
+    # VECTORSTORE_DIR가 Path 객체일 수 있으므로 str로 변환
+    summary_path = os.path.join(str(VECTORSTORE_DIR), "doc_summaries.json")
+
+    if os.path.exists(summary_path):
+      with open(summary_path, "r", encoding="utf-8") as f:
+        docs = json.load(f)
+      return {"documents": docs}
+    return {"documents": {}}
+  except Exception as e:
+    print(f"AI Fetch Docs Error: {e}")
+    return {"documents": {}}
