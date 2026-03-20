@@ -79,7 +79,6 @@ function App() {
       
       // ✅ 관리자 메뉴 분리 라우팅
       case 'User Management': return <UserManagement />;
-      case 'Admin Test Page':
       case 'System Settings': return <SystemSettings />;
       
       default:
