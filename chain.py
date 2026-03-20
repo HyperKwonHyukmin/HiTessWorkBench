@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 
-from config import (
+from .config import (
     VECTORSTORE_DIR,
     OLLAMA_BASE_URL,
     LLM_MODEL,
@@ -26,7 +26,7 @@ DOC_SUMMARIES_PATH = VECTORSTORE_DIR / "doc_summaries.json"
 
 # ── 대화 기반 질문 재구성 프롬프트 ──
 CONDENSE_PROMPT = """\
-아래 대화 기록과 후속 질문을 보고, 후속 질문을 독립적인 질문으로 재구성세요.
+아래 대화 기록과 후속 질문을 보고, 후속 질문을 독립적인 질문으로 재구성하세요.
 대화 기록의 맥락을 반영하되, 검색에 적합한 구체적 질문으로 만드세요.
 재구성된 질문만 출력하세요.
 
@@ -51,7 +51,7 @@ SYSTEM_PROMPT = """\
 [중요 규칙] 반드시 한국어(Korean)로만 답변하세요.
 
 당신은 조선·해양 구조공학 분야의 선임 연구원 수준의 전문 어시스턴트입니다.
-연구실 내부 보고서의 문맥(Context)을 기반으로 질에 답변합니다.
+연구실 내부 보고서의 문맥(Context)을 기반으로 질문에 답변합니다.
 
 ## 답변 작성 규칙
 
