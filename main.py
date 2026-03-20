@@ -282,3 +282,108 @@ async def request_truss_analysis(
 
   # 서버는 브라우저를 잡고 있지 않고 즉시 ID만 돌려줌
   return {"job_id": job_id}
+
+# ==============================================================================
+# [NEW] Support & Community API
+# ==============================================================================
+
+# --- Notice API ---
+@app.get("/api/notices", response_model=list[schemas.NoticeResponse])
+def get_notices(db: Session = Depends(database.get_db)):
+    return db.query(models.Notice).order_by(models.Notice.is_pinned.desc(), models.Notice.created_at.desc()).all()
+
+@app.post("/api/notices", response_model=schemas.NoticeResponse)
+def create_notice(notice: schemas.NoticeCreate, db: Session = Depends(database.get_db)):
+    new_notice = models.Notice(**notice.dict())
+    db.add(new_notice)
+    db.commit()
+    db.refresh(new_notice)
+    return new_notice
+
+# --- Feature Request API ---
+@app.get("/api/feature-requests", response_model=list[schemas.FeatureRequestResponse])
+def get_feature_requests(db: Session = Depends(database.get_db)):
+    return db.query(models.FeatureRequest).order_by(models.FeatureRequest.upvotes.desc(), models.FeatureRequest.created_at.desc()).all()
+
+@app.post("/api/feature-requests", response_model=schemas.FeatureRequestResponse)
+def create_feature_request(req: schemas.FeatureRequestCreate, db: Session = Depends(database.get_db)):
+    new_req = models.FeatureRequest(**req.dict())
+    db.add(new_req)
+    db.commit()
+    db.refresh(new_req)
+    return new_req
+
+@app.put("/api/feature-requests/{req_id}/upvote")
+def upvote_feature_request(req_id: int, db: Session = Depends(database.get_db)):
+    req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+    req.upvotes += 1
+    db.commit()
+    return {"message": "Upvoted successfully", "upvotes": req.upvotes}
+
+# --- User Guide API ---
+@app.get("/api/user-guides", response_model=list[schemas.UserGuideResponse])
+def get_user_guides(db: Session = Depends(database.get_db)):
+    return db.query(models.UserGuide).order_by(models.UserGuide.category, models.UserGuide.created_at).all()
+
+@app.post("/api/user-guides", response_model=schemas.UserGuideResponse)
+def create_user_guide(guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
+    new_guide = models.UserGuide(**guide.dict())
+    db.add(new_guide)
+    db.commit()
+    db.refresh(new_guide)
+    return new_guide
+
+# --- Notice 수정 및 삭제 API ---
+@app.put("/api/notices/{notice_id}", response_model=schemas.NoticeResponse)
+def update_notice(notice_id: int, notice: schemas.NoticeCreate, db: Session = Depends(database.get_db)):
+    db_notice = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
+    for key, value in notice.dict().items():
+        setattr(db_notice, key, value)
+    db.commit()
+    db.refresh(db_notice)
+    return db_notice
+
+@app.delete("/api/notices/{notice_id}")
+def delete_notice(notice_id: int, db: Session = Depends(database.get_db)):
+    db_notice = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
+    db.delete(db_notice)
+    db.commit()
+    return {"message": "Deleted"}
+
+# --- Feature Request 댓글 및 삭제 API ---
+@app.put("/api/feature-requests/{req_id}/comment")
+def comment_feature_request(req_id: int, comment_data: schemas.FeatureRequestComment, db: Session = Depends(database.get_db)):
+    req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
+    req.status = comment_data.status
+    req.admin_comment = comment_data.admin_comment
+    # 댓글이 달렸으므로 카운트 1로 고정 (단일 관리자 답변 컨셉)
+    req.comments_count = 1 if comment_data.admin_comment else 0
+    db.commit()
+    db.refresh(req)
+    return req
+
+@app.delete("/api/feature-requests/{req_id}")
+def delete_feature_request(req_id: int, db: Session = Depends(database.get_db)):
+    req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
+    db.delete(req)
+    db.commit()
+    return {"message": "Deleted"}
+
+# --- User Guide 수정 및 삭제 API ---
+@app.put("/api/user-guides/{guide_id}")
+def update_user_guide(guide_id: int, guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
+    db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
+    for key, value in guide.dict().items():
+        setattr(db_guide, key, value)
+    db.commit()
+    db.refresh(db_guide)
+    return db_guide
+
+@app.delete("/api/user-guides/{guide_id}")
+def delete_user_guide(guide_id: int, db: Session = Depends(database.get_db)):
+    db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
+    db.delete(db_guide)
+    db.commit()
+    return {"message": "Deleted"}
