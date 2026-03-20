@@ -79,7 +79,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
     menuItems.push({
       category: "RESEARCH & AI", 
       items: [
-        { icon: Bot, label: "AI Lab Assistant" },
+        { icon: Bot, label: "AI Assistant" },
         { icon: Library, label: "Knowledge Archive" },
       ]
     });
@@ -115,7 +115,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     // [중요] 2차 보안 비밀번호 설정 (기본값: admin1234)
-    // 상용화 시에는 이 분도 백엔드 API와 통신하여 검증하도록 변경해야 합니다.
+    // 상용화 시에는 이 부분도 백엔드 API와 통신하여 검증하도록 변경해야 합니다.
     if (adminPassword === 'str_2006') {
       setIsSecondaryAuthPassed(true);  // 세션 인증 통과 마킹
       setIsAuthModalOpen(false);       // 모달 닫기
@@ -137,7 +137,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
             <span className="text-xl font-bold text-[#00E600]">H</span>
           ) : (
             <h1 className="text-xl font-bold tracking-wider">
-              HiTESS <span className="text-[#00E600] text-sm font-light">WB</span>
+              HiTESS <span className="text-[#00E600] text-sm font-light">Workbench</span>
             </h1>
           )}
         </div>
