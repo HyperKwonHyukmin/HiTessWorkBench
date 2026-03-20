@@ -1,21 +1,55 @@
-/// <summary>
-/// 사용자가 자유롭게 기능 추가나 버그 수정을 요청할 수 있는 게시판입니다.
-/// 모든 사용자가 '새 요청 작성' 버튼을 사용할 수 있습니다.
-/// </summary>
-import React from 'react';
-import { Lightbulb, Plus, ThumbsUp, MessageCircle } from 'lucide-react';
+import React, { useState, useEffect, Fragment } from 'react';
+import { Lightbulb, Plus, ThumbsUp, MessageCircle, X, Tag, Flag, ArrowUpDown } from 'lucide-react';
+import { Dialog, Transition } from '@headlessui/react';
+import axios from 'axios';
+import { API_BASE_URL } from '../../config';
 
 export default function FeatureRequests() {
-  const requests = [
-    { id: 1, author: '김선임', title: 'Pipe 해석 결과 단면력 다이어그램 추가 요청', status: 'In Progress', upvotes: 12, comments: 3 },
-    { id: 2, author: '이책임', title: '다크모드 지원해주시면 감사하겠습니다.', status: 'Under Review', upvotes: 8, comments: 1 },
-    { id: 3, author: '박연구원', title: 'Truss 노드 데이터 엑셀(xlsx) 직접 업로드 기능', status: 'Planned', upvotes: 5, comments: 2 },
-  ];
+  const [currentUser, setCurrentUser] = useState(null);
+  const [requests, setRequests] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formData, setFormData] = useState({ title: '', content: '' });
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) setCurrentUser(JSON.parse(storedUser));
+    fetchRequests();
+  }, []);
+
+  const fetchRequests = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/feature-requests`);
+      setRequests(res.data);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleUpvote = async (id) => {
+    try {
+      await axios.put(`${API_BASE_URL}/api/feature-requests/${id}/upvote`);
+      fetchRequests(); // 추천 수 갱신
+    } catch (err) { console.error(err); }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if(!currentUser) return alert("로그인이 필요합니다.");
+    try {
+      await axios.post(`${API_BASE_URL}/api/feature-requests`, {
+        title: formData.title,
+        content: formData.content,
+        author_id: currentUser.employee_id,
+        author_name: currentUser.name
+      });
+      setIsModalOpen(false);
+      setFormData({ title: '', content: '' });
+      fetchRequests();
+    } catch (err) { alert("요청 등록 실패"); }
+  };
 
   const statusColors = {
-    'In Progress': 'bg-blue-100 text-blue-700 border-blue-200',
     'Under Review': 'bg-yellow-100 text-yellow-700 border-yellow-200',
     'Planned': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    'In Progress': 'bg-blue-100 text-blue-700 border-blue-200',
   };
 
   return (
@@ -27,8 +61,7 @@ export default function FeatureRequests() {
           </h1>
           <p className="text-slate-500 mt-2">필요한 기능이나 개선사항을 제안해 주세요. 모든 사용자가 작성할 수 있습니다.</p>
         </div>
-        {/* 누구나 작성 가능 */}
-        <button className="flex items-center gap-2 px-4 py-2 bg-[#00E600] text-[#002554] rounded-lg text-sm font-bold hover:bg-[#00c200] transition-colors shadow-md cursor-pointer">
+        <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#00E600] text-[#002554] rounded-lg text-sm font-bold hover:bg-[#00c200] transition-colors shadow-md cursor-pointer">
           <Plus size={18} /> 새 요청 작성
         </button>
       </div>
@@ -37,25 +70,89 @@ export default function FeatureRequests() {
         {requests.map(req => (
           <div key={req.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-[#00E600] transition-all cursor-pointer flex flex-col h-full">
             <div className="flex justify-between items-start mb-4">
-              <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${statusColors[req.status]}`}>
+              <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${statusColors[req.status] || statusColors['Under Review']}`}>
                 {req.status}
               </span>
-              <span className="text-xs text-slate-400 font-bold">{req.author}</span>
+              <span className="text-xs text-slate-400 font-bold">{req.author_name}</span>
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex-1 line-clamp-2">{req.title}</h3>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">{req.title}</h3>
+            <p className="text-sm text-slate-500 mb-4 flex-1 line-clamp-3">{req.content}</p>
             <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
               <div className="flex gap-4">
-                <button className="flex items-center gap-1.5 text-slate-400 hover:text-blue-500 transition-colors cursor-pointer">
+                <button onClick={(e) => { e.stopPropagation(); handleUpvote(req.id); }} className="flex items-center gap-1.5 text-slate-400 hover:text-blue-500 transition-colors cursor-pointer">
                   <ThumbsUp size={16} /> <span className="text-sm font-bold">{req.upvotes}</span>
                 </button>
                 <div className="flex items-center gap-1.5 text-slate-400">
-                  <MessageCircle size={16} /> <span className="text-sm font-bold">{req.comments}</span>
+                  <MessageCircle size={16} /> <span className="text-sm font-bold">{req.comments_count}</span>
                 </div>
               </div>
             </div>
           </div>
         ))}
       </div>
+
+      <Transition appear show={isModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <Dialog.Panel className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="bg-[#00E600] p-5 flex justify-between items-center text-[#002554]">
+                <div>
+                  <Dialog.Title className="font-extrabold text-lg flex items-center gap-2">
+                    <Lightbulb size={20} /> 시스템 기능 개선 제안
+                  </Dialog.Title>
+                  <p className="text-xs font-bold text-[#002554]/70 mt-1">여러분의 아이디어가 더 나은 워크벤치를 만듭니다.</p>
+                </div>
+                <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-1.5 rounded-lg transition-colors"><X size={24}/></button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="p-6 bg-slate-50 space-y-6">
+                {/* 분류 및 중요도 */}
+                <div className="flex gap-4">
+                  <div className="w-1/2">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Tag size={12}/> 관련 모듈</label>
+                    <select className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-green-500 bg-white text-sm font-bold text-slate-700">
+                      <option>공통 (UI / UX / Dashboard)</option>
+                      <option>Truss Analysis</option>
+                      <option>Pipe Analysis</option>
+                      <option>Interactive Apps</option>
+                      <option>기타 (Other)</option>
+                    </select>
+                  </div>
+                  <div className="w-1/2">
+                    <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center gap-1"><Flag size={12}/> 희망 중요도</label>
+                    <select className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-green-500 bg-white text-sm font-bold text-slate-700">
+                      <option>낮음 (있으면 좋음)</option>
+                      <option>보통 (업무 효율성 향상)</option>
+                      <option>높음 (핵심 기능 버그/부재)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 제목 및 내용 */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">제안 요약 (Title)</label>
+                  <input type="text" required placeholder="ex) Truss 결과의 엑셀 다운로드 기능 추가" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full p-3 border border-slate-200 rounded-lg outline-none focus:border-green-500 font-bold text-slate-800" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">상세 제안 내용 (Description)</label>
+                  <div className="bg-white rounded-lg border border-slate-200 focus-within:border-green-500 overflow-hidden">
+                    <textarea required placeholder="현재의 불편한 점과 어떻게 개선되었으면 하는지 상세히 적어주세요." value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full h-40 p-4 outline-none resize-none text-sm text-slate-700 leading-relaxed" />
+                    <div className="bg-slate-50 border-t border-slate-100 p-2 text-xs text-slate-400 font-mono text-right">
+                      * 제출된 제안은 운영진 검토 후 Status가 변경됩니다.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors">취소</button>
+                  <button type="submit" className="px-8 py-2.5 bg-[#002554] text-white font-bold rounded-xl hover:bg-[#003366] transition-colors shadow-lg">제안서 제출하기</button>
+                </div>
+              </form>
+            </Dialog.Panel>
+          </div>
+        </Dialog>
+      </Transition>
     </div>
   );
 }
