@@ -155,7 +155,7 @@ def get_job_status(job_id: str):
 
 # ✅ 8. 실제 해석을 백그라운드에서 수행하는 함수 (별도 스레드에서 동작)
 def task_execute_truss(job_id: str, node_path: str, member_path: str, work_dir: str, exe_path: str, exe_dir: str,
-                       employee_id: str, timestamp: str):
+                       employee_id: str, timestamp: str, source: str):
   # 시작 상태 업데이트
   job_status_store[job_id].update({"status": "Running", "progress": 10, "message": "Initiating Truss Solver..."})
 
@@ -209,7 +209,8 @@ def task_execute_truss(job_id: str, node_path: str, member_path: str, work_dir: 
         employee_id=employee_id,
         status=status_msg,
         input_info=input_data,
-        result_info=result_data if status_msg == "Success" else None
+        result_info=result_data if status_msg == "Success" else None,
+        source=source
       )
       db.add(new_analysis)
       db.commit()
@@ -249,7 +250,8 @@ async def request_truss_analysis(
         background_tasks: BackgroundTasks,
         node_file: UploadFile = File(...),
         member_file: UploadFile = File(...),
-        employee_id: str = Form(...)
+        employee_id: str = Form(...),
+        source: str = Form("Workbench")
         # 주의: 이 함수 안에서는 DB 세션이 필요 없습니다 (백그라운드가 담당)
 ):
   base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -280,10 +282,10 @@ async def request_truss_analysis(
 
   # 백그라운드 워커에 일거리 투척!
   background_tasks.add_task(
-    task_execute_truss, job_id, node_path, member_path, work_dir, exe_path, exe_dir, employee_id, timestamp
+    task_execute_truss, job_id, node_path, member_path, work_dir, exe_path, exe_dir, employee_id, timestamp,source
   )
 
-  # 서버는 브라우저를 잡고 있지 않고 시 ID만 돌려줌
+  # 서버는 브라우저를 잡고 있지 않고 즉시 ID만 돌려줌
   return {"job_id": job_id}
 
 # ==============================================================================
@@ -424,3 +426,8 @@ def get_system_status(db: Session = Depends(database.get_db)):
         "db_status": db_status,
         "latency_ms": latency_ms
     }
+
+@app.get("/api/analysis/all")
+def get_all_analysis_history(db: Session = Depends(database.get_db)):
+    """관리자용 전체 해석 이력 조회"""
+    return db.query(models.Analysis).order_by(models.Analysis.created_at.desc()).all()
