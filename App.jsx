@@ -9,18 +9,15 @@ import { Wand2 } from 'lucide-react';
 import ComponentWizard from './pages/ComponentWizard';
 import { DashboardProvider } from './contexts/DashboardContext';
 import InteractiveApps from './pages/InteractiveApps';
-
 import NoticeBoard from './pages/Support/NoticeBoard';
 import UserGuide from './pages/Support/UserGuide';
 import TrussAnalysis from './pages/TrussAnalysis'; 
-
-// ✅ 이름이 변경된 컴포넌트 임포트
 import UserRequests from './pages/Support/UserRequests'; 
-
-// ✅ 관리자 메뉴 2종 임포트
 import UserManagement from './pages/Administration/UserManagement'; 
 import SystemSettings from './pages/Administration/SystemSettings';
 import AnalysisManagement from './pages/Administration/AnalysisManagement';
+import AiAssistantHub from './pages/AI/AiAssistantHub';
+import HiLabInsight from './pages/AI/HiLabInsight';
 
 const APP_STATE = { SPLASH: 'splash', LOGIN: 'login', MAIN: 'main' };
 
@@ -82,6 +79,13 @@ function App() {
       case 'User Management': return <UserManagement />;
       case 'Analysis Management': return <AnalysisManagement />;
       case 'System Settings': return <SystemSettings />;
+
+      case 'AI Lab Assistant': 
+      case 'AI Assistant': 
+        return <AiAssistantHub setCurrentMenu={setCurrentMenu} />;
+        
+      case 'Hi-Lab Insight': 
+        return <HiLabInsight setCurrentMenu={setCurrentMenu} />;
       
       default:
         return (
@@ -90,7 +94,7 @@ function App() {
               <Wand2 size={48} className="opacity-20" />
             </div>
             <p className="text-lg font-bold text-slate-600">"{currentMenu}"</p>
-            <p className="text-sm">해당 페이지는 현재 시스템 최적화 및 개발 진행 중입니다.</p>
+            <p className="text-sm">해당 페이지는 재 시스템 최적화 및 개발 진행 중입니다.</p>
             <button 
               onClick={() => setCurrentMenu('Dashboard')}
               className="mt-6 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
