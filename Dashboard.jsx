@@ -106,6 +106,22 @@ export default function Dashboard({ setCurrentMenu }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [queueStatus, setQueueStatus] = useState({ running: 0, pending: 0, limit: 2 });
+
+  useEffect(() => {
+    const fetchQueue = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/system/queue-status`);
+        setQueueStatus(res.data);
+      } catch (error) {
+        console.error("Queue Status fetch error", error);
+      }
+    };
+    fetchQueue();
+    const interval = setInterval(fetchQueue, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     const fetchHistory = async () => {
       try {
@@ -160,8 +176,41 @@ export default function Dashboard({ setCurrentMenu }) {
         </div>
       </div>
 
-      {/* ✅ [수정됨] 통계 카드를 2개로 줄이고 그리드를 1/2 로 분할 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-2">
+      {/* ✅ [수정됨] 통계 카드를 3개로 늘리고 1/3 로 분할 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-2">
+        
+        {/* ✅ [신규] 해석 서버 큐(Queue) 모니터링 카드 */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 relative overflow-hidden group hover:border-blue-300 transition-colors">
+          <div className="absolute -right-4 -top-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Server size={100} />
+          </div>
+          <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider flex items-center gap-2 mb-3">
+            <Activity size={16} className="text-blue-500" /> Analysis Server Load
+          </h3>
+          <p className="text-[11px] text-gray-400 font-bold mb-2">현재 서버 구동 현황</p>
+          
+          <div className="text-2xl font-extrabold text-slate-800 tracking-tight mb-2">
+            {queueStatus.running} <span className="text-sm text-slate-400 font-medium">/ {queueStatus.limit} Running</span>
+          </div>
+          
+          {/* 프로그레스 바 */}
+          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-3">
+            <div 
+              className={`h-full transition-all duration-500 ${queueStatus.running >= queueStatus.limit ? 'bg-red-500' : 'bg-blue-500'}`}
+              style={{ width: `${(queueStatus.running / queueStatus.limit) * 100}%` }}
+            ></div>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
+            <Activity size={14} className={queueStatus.pending > 0 ? "text-orange-500" : "text-slate-400"} />
+            대기 중인 큐: 
+            <span className={queueStatus.pending > 0 ? "text-orange-600" : "text-slate-500"}>
+              {queueStatus.pending} 건
+            </span>
+          </div>
+        </div>
+        {/* ✅ (신규 카드 끝) */}
+
         <EngineeringStatCard 
           title="Monthly Usage" 
           titleKo="이번 달 사용량"
