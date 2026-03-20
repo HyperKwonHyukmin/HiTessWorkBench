@@ -85,9 +85,10 @@ export default function TrussAnalysis({ setCurrentMenu }) {
     formData.append('node_file', nodeFile);
     formData.append('member_file', memberFile);
     formData.append('employee_id', employeeId);
+    formData.append('source', 'Workbench');
 
     try {
-      // 1. 작 요청 API 호출 (즉시 job_id 반환)
+      // 1. 작업 요청 API 호출 (즉시 job_id 반환)
       const requestRes = await axios.post(`${API_BASE_URL}/api/analysis/truss/request`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
