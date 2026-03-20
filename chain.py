@@ -188,67 +188,85 @@ def bm25_search(query: str, bm25_data: dict, k: int = 10) -> list[tuple[int, flo
 
 
 def retrieve_parent_docs(
-    question: str,
-    vectorstore,
-    parent_store: dict,
-    k: int = RETRIEVER_K,
-    llm=None,
-    chat_history: list[dict] | None = None,
-    bm25_data: dict | None = None,
+        question: str,
+        vectorstore,
+        parent_store: dict,
+        k: int = RETRIEVER_K,
+        llm=None,
+        chat_history: list[dict] | None = None,
+        bm25_data: dict | None = None,
+        target_document: str = "all",  # ✅ [신규] 특정 문서 필터링 옵션
 ):
-    """하이브리드 검색 (벡터 + BM25) → Multi-Query → 부모 청크 확장 → Re-ranking."""
+  """하이브리드 검색 (벡터 + BM25) → Multi-Query → 부모 청크 확장 → Re-ranking."""
 
-    # 1) 대화 기억: 이전 대화를 반영한 질문 재구성
-    search_question = question
-    if llm and chat_history:
-        search_question = condense_question(question, chat_history, llm)
+  # 1) 대화 기억: 이전 대화를 반영한 문 재구성
+  search_question = question
+  if llm and chat_history:
+    search_question = condense_question(question, chat_history, llm)
 
-    # 2) Multi-Query: 여러 변형 질문 생성
-    if llm:
-        queries = generate_multi_queries(search_question, llm)
+  # 2) Multi-Query: 여러 변형 질문 생성
+  if llm:
+    queries = generate_multi_queries(search_question, llm)
+  else:
+    queries = [search_question]
+
+  # 3) 하이브리드 검색: 벡터 + BM25 점수 결합
+  parent_scores = {}
+
+  for q in queries:
+    # ✅ [수정] 벡터 검색 (특정 문서 필터링 적용)
+    if target_document and target_document != "all":
+      results_with_scores = vectorstore.similarity_search_with_score(q, k=k, filter={"source_file": target_document})
     else:
-        queries = [search_question]
+      results_with_scores = vectorstore.similarity_search_with_score(q, k=k)
 
-    # 3) 하이브리드 검색: 벡터 + BM25 점수 결합
-    parent_scores = {}  # parent_id -> combined_score
+    for child, score in results_with_scores:
+      parent_id = child.metadata.get("parent_id")
+      if parent_id and parent_id in parent_store:
+        relevance = 1.0 / (1.0 + score)  # 거리 → 유사도 변환
+        vector_score = relevance * VECTOR_WEIGHT
+        if parent_id not in parent_scores:
+          parent_scores[parent_id] = 0.0
+        parent_scores[parent_id] = max(parent_scores[parent_id], vector_score)
 
-    for q in queries:
-        # 벡터 검색
-        results_with_scores = vectorstore.similarity_search_with_score(q, k=k)
-        for child, score in results_with_scores:
-            parent_id = child.metadata.get("parent_id")
-            if parent_id and parent_id in parent_store:
-                relevance = 1.0 / (1.0 + score)  # 거리 → 유사도 변환
-                vector_score = relevance * VECTOR_WEIGHT
-                if parent_id not in parent_scores:
-                    parent_scores[parent_id] = 0.0
-                parent_scores[parent_id] = max(parent_scores[parent_id], vector_score)
+    # ✅ [수정] BM25 검색 (특정 문서 필터링 적용)
+    if bm25_data:
+      bm25_results = bm25_search(q, bm25_data, k=k * 2)  # 필터링을 고려해 넉넉히 추출
+      if bm25_results:
+        max_bm25 = max(s for _, s in bm25_results) or 1.0
+        for idx, score in bm25_results:
+          metadata = bm25_data["metadata"][idx]
 
-        # BM25 검색
-        if bm25_data:
-            bm25_results = bm25_search(q, bm25_data, k=k)
-            # BM25 점수 정규화
-            if bm25_results:
-                max_bm25 = max(s for _, s in bm25_results) or 1.0
-                for idx, score in bm25_results:
-                    parent_id = bm25_data["metadata"][idx].get("parent_id")
-                    if parent_id and parent_id in parent_store:
-                        norm_score = (score / max_bm25) * BM25_WEIGHT
-                        if parent_id not in parent_scores:
-                            parent_scores[parent_id] = 0.0
-                        parent_scores[parent_id] += norm_score
+          # 대상 문서가 'all'이 아닌데, 파일명이 다르면 스킵!
+          if target_document != "all" and metadata.get("source_file") != target_document:
+            continue
 
-    # 4) Re-ranking: 결합 점수 기준 정렬
-    sorted_parents = sorted(parent_scores.items(), key=lambda x: x[1], reverse=True)
+          parent_id = metadata.get("parent_id")
+          if parent_id and parent_id in parent_store:
+            norm_score = (score / max_bm25) * BM25_WEIGHT
+            if parent_id not in parent_scores:
+              parent_scores[parent_id] = 0.0
+            parent_scores[parent_id] += norm_score
 
-    max_parents = max(k // 2, 5)
-    parent_docs = []
-    for parent_id, score in sorted_parents[:max_parents]:
-        doc = parent_store[parent_id].copy()
-        doc["relevance_score"] = round(score, 4)
-        parent_docs.append(doc)
+  # 4) Re-ranking: 결합 점수 기준 정렬
+  sorted_parents = sorted(parent_scores.items(), key=lambda x: x[1], reverse=True)
 
-    return parent_docs
+  # 🚀 [수정] 점수가 1.0(100%)을 초과하지 않도록 상대 평가(정규화) 스케일링
+  max_score = sorted_parents[0][1] if sorted_parents else 1.0
+  scale_factor = 1.0 if max_score <= 1.0 else (1.0 / max_score)
+
+  max_parents = max(k // 2, 5)
+  parent_docs = []
+  for parent_id, score in sorted_parents[:max_parents]:
+    doc = parent_store[parent_id].copy()
+
+    # 🚀 [수정] 정규화된 점수에 최대 0.99(99%) 캡을 씌워 현실적인 신뢰도로 표현
+    normalized_score = min(score * scale_factor, 0.99)
+    doc["relevance_score"] = round(normalized_score, 4)
+
+    parent_docs.append(doc)
+
+  return parent_docs
 
 
 def format_parent_docs(parent_docs: list[dict]) -> str:
@@ -322,18 +340,21 @@ def stream_answer(question: str, rag_components: dict, chat_history: list[dict] 
             yield chunk.content, parent_docs
 
 
-def query(question: str):
-    """질문에 대한 답변과 출처 문서를 반환한다."""
-    components = get_rag_chain()
-    vs = components["vectorstore"]
-    ps = components["parent_store"]
-    bm25 = components["bm25_data"]
-    llm = components["llm"]
+# ✅ 수정된 query 함수
+def query(question: str, chat_history: list[dict] = None, target_document: str = "all"):
+  """질문에 대한 답변과 출처 문서를 반환한다."""
+  components = get_rag_chain()
+  vs = components["vectorstore"]
+  ps = components["parent_store"]
+  bm25 = components["bm25_data"]
+  llm = components["llm"]
 
-    parent_docs = retrieve_parent_docs(
-        question, vs, ps, llm=llm, bm25_data=bm25,
-    )
-    context = format_parent_docs(parent_docs)
-    messages = prompt.format_messages(context=context, question=question)
-    answer = llm.invoke(messages).content
-    return answer, parent_docs
+  # ✅ 검색기 호출 시 target_document 파라미터 전달
+  parent_docs = retrieve_parent_docs(
+    question, vs, ps, llm=llm, bm25_data=bm25, chat_history=chat_history, target_document=target_document
+  )
+  context = format_parent_docs(parent_docs)
+  messages = prompt.format_messages(context=context, question=question)
+  answer = llm.invoke(messages).content
+
+  return answer, parent_docs  # 답변과 함께 참조한 원문(docs)도 뱉어냄
