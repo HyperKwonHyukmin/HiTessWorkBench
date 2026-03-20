@@ -19,7 +19,8 @@ import UserRequests from './pages/Support/UserRequests';
 
 // ✅ 관리자 메뉴 2종 임포트
 import UserManagement from './pages/Administration/UserManagement'; 
-import SystemSettings from './pages/Administration/SystemSettings'; 
+import SystemSettings from './pages/Administration/SystemSettings';
+import AnalysisManagement from './pages/Administration/AnalysisManagement';
 
 const APP_STATE = { SPLASH: 'splash', LOGIN: 'login', MAIN: 'main' };
 
@@ -79,6 +80,7 @@ function App() {
       
       // ✅ 관리자 메뉴 분리 라우팅
       case 'User Management': return <UserManagement />;
+      case 'Analysis Management': return <AnalysisManagement />;
       case 'System Settings': return <SystemSettings />;
       
       default:
