@@ -1,7 +1,3 @@
-/// <summary>
-/// 사용자 가이드라인 게시판.
-/// 와이드 모달(max-w-7xl) 내에서 Write / Preview 탭 기능을 지원하며, 인라인 수정 및 삭제가 가능합니다.
-/// </summary>
 import React, { useState, useEffect, Fragment } from 'react';
 import { BookOpen, Edit3, FileText, X, Terminal, Eye, Trash2, Edit2 } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
@@ -26,8 +22,9 @@ export default function UserGuide() {
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
-      setIsAdmin(JSON.parse(storedUser).is_admin);
-      setCurrentUser(JSON.parse(storedUser));
+      const parsed = JSON.parse(storedUser);
+      setIsAdmin(parsed.is_admin);
+      setCurrentUser(parsed);
     }
     fetchGuides();
   }, []);
@@ -39,7 +36,6 @@ export default function UserGuide() {
     } catch (err) { console.error("가이드 로드 실패", err); }
   };
 
-  // 버튼 작동 이벤트 핸들러
   const openWriteModal = () => {
     setEditMode(false); setIsPreview(false);
     setFormData({ category: activeCategory, title: '', content: '' });
@@ -62,6 +58,7 @@ export default function UserGuide() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if(!currentUser) { alert("로그인이 필요합니다."); return; }
     try {
       const payload = { ...formData, author_id: currentUser.employee_id };
       if (editMode) await axios.put(`${API_BASE_URL}/api/user-guides/${selectedGuideId}`, payload);
@@ -103,7 +100,6 @@ export default function UserGuide() {
             currentGuides.map(guide => (
               <div key={guide.id} className="mb-10 prose prose-slate max-w-none text-slate-600 group relative pr-20">
                 <h3 className="text-xl font-extrabold text-[#002554] mb-3">{guide.title}</h3>
-                {/* 관리자 인라인 삭제/수정 버튼 */}
                 {isAdmin && (
                   <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
                      <button onClick={() => openEditModal(guide)} className="p-2 bg-slate-100 text-slate-600 rounded hover:bg-blue-100 hover:text-blue-600 cursor-pointer"><Edit2 size={16}/></button>
@@ -117,7 +113,6 @@ export default function UserGuide() {
         </div>
       </div>
 
-      {/* --- 와이드형 전문 작성 모달 (복구됨) --- */}
       <Transition appear show={isModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
@@ -166,7 +161,7 @@ export default function UserGuide() {
                   
                   <div className="flex justify-end gap-3 shrink-0 pt-2">
                     <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer">취소</button>
-                    <button type="submit" className="px-8 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg cursor-pointer">가이드라인 배포</button>
+                    <button type="submit" className="px-8 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg cursor-pointer">{editMode ? '가이드라인 수정' : '가이드라인 배포'}</button>
                   </div>
                 </div>
               </form>
