@@ -5,7 +5,7 @@ import {
   PenTool,        // Interactive Apps
   FolderOpen,     // My Project
   Megaphone,      // Notice & Updates
-  Lightbulb,      // Feature Requests
+  Lightbulb,      // User Requests
   BookOpen,       // User Guide
   Bot,            // AI Lab Assistant (LLM 챗봇)
   Library,        // Knowledge Archive
@@ -56,7 +56,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
       category: "SUPPORT & COMMUNITY", 
       items: [
         { icon: Megaphone, label: "Notice & Updates" },
-        { icon: Lightbulb, label: "Feature Requests" },
+        { icon: Lightbulb, label: "User Requests" },
         { icon: BookOpen, label: "User Guide" },
       ]
     }
