@@ -313,14 +313,12 @@ def create_feature_request(req: schemas.FeatureRequestCreate, db: Session = Depe
     db.refresh(new_req)
     return new_req
 
-@app.put("/api/feature-requests/{req_id}/upvote")
-def upvote_feature_request(req_id: int, db: Session = Depends(database.get_db)):
+@app.delete("/api/feature-requests/{req_id}")
+def delete_feature_request(req_id: int, db: Session = Depends(database.get_db)):
     req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
-    if not req:
-        raise HTTPException(status_code=404, detail="Request not found")
-    req.upvotes += 1
+    db.delete(req)
     db.commit()
-    return {"message": "Upvoted successfully", "upvotes": req.upvotes}
+    return {"message": "Deleted"}
 
 # --- User Guide API ---
 @app.get("/api/user-guides", response_model=list[schemas.UserGuideResponse])
@@ -334,6 +332,22 @@ def create_user_guide(guide: schemas.UserGuideCreate, db: Session = Depends(data
     db.commit()
     db.refresh(new_guide)
     return new_guide
+
+@app.put("/api/user-guides/{guide_id}")
+def update_user_guide(guide_id: int, guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
+    db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
+    for key, value in guide.dict().items():
+        setattr(db_guide, key, value)
+    db.commit()
+    db.refresh(db_guide)
+    return db_guide
+
+@app.delete("/api/user-guides/{guide_id}")
+def delete_user_guide(guide_id: int, db: Session = Depends(database.get_db)):
+    db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
+    db.delete(db_guide)
+    db.commit()
+    return {"message": "Deleted"}
 
 # --- Notice 수정 및 삭제 API ---
 @app.put("/api/notices/{notice_id}", response_model=schemas.NoticeResponse)
@@ -352,13 +366,11 @@ def delete_notice(notice_id: int, db: Session = Depends(database.get_db)):
     db.commit()
     return {"message": "Deleted"}
 
-# --- Feature Request 댓글 및 삭제 API ---
 @app.put("/api/feature-requests/{req_id}/comment")
 def comment_feature_request(req_id: int, comment_data: schemas.FeatureRequestComment, db: Session = Depends(database.get_db)):
     req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
     req.status = comment_data.status
     req.admin_comment = comment_data.admin_comment
-    # 댓글이 달렸으므로 카운트 1로 고정 (단일 관리자 답변 컨셉)
     req.comments_count = 1 if comment_data.admin_comment else 0
     db.commit()
     db.refresh(req)
