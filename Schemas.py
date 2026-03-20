@@ -2,41 +2,39 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 
-
-# 1. 로그인 요청 시 받을 데이터 (사번만 받음)
+# ==========================================
+# 1. User (사용자 계정) 스키마
+# ==========================================
 class LoginRequest(BaseModel):
-  employee_id: str
+    employee_id: str
 
-
-# 2. 사용자 등록 요청 시 받을 데이터 (회원가입용)
 class UserCreate(BaseModel):
-  employee_id: str
-  name: str
-  company: str
-  department: str
-  position: str
+    employee_id: str
+    name: str
+    company: str
+    department: str
+    position: str
 
-
-# 3. 프론트엔드에게 응답으로 줄 데이터 (User 정보)
 class UserResponse(BaseModel):
-  id: int
-  employee_id: str
-  name: str
-  company: str
-  department: Optional[str] = None
-  position: str
-  is_active: bool = False  # 승인 여부 (로그인 시 체크)
-  is_admin: bool = False  # 관리자 여부 (관리자 메뉴 표시용)
-  login_count: int
-  last_login: Optional[datetime] = None
-  created_at: Optional[datetime] = None
+    id: int
+    employee_id: str
+    name: str
+    company: str
+    department: Optional[str] = None
+    position: str
+    is_active: bool = False  # 승인 여부
+    is_admin: bool = False   # 관리자 여부
+    login_count: int
+    last_login: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
-  class Config:
-    orm_mode = True  # SQLAlchemy 모델을 Pydantic으로 변환 허용
+    class Config:
+        orm_mode = True  # SQLAlchemy 모델을 Pydantic으로 변환 허용
 
-# [기존 UserResponse 아래에 추가]
 
-# --- Notice 스키마 ---
+# ==========================================
+# 2. Notice & Updates (공지사항) 스키마
+# ==========================================
 class NoticeCreate(BaseModel):
     type: str
     title: str
@@ -47,10 +45,14 @@ class NoticeCreate(BaseModel):
 class NoticeResponse(NoticeCreate):
     id: int
     created_at: datetime
+
     class Config:
         orm_mode = True
 
-# --- Feature Request 스키마 ---
+
+# ==========================================
+# 3. Feature Request (기능 요청 및 피드백) 스키마
+# ==========================================
 class FeatureRequestCreate(BaseModel):
     title: str
     content: str
@@ -62,15 +64,21 @@ class FeatureRequestResponse(FeatureRequestCreate):
     status: str
     upvotes: int
     comments_count: int
+    admin_comment: Optional[str] = None  # 관리자 피드백 댓글
     created_at: datetime
+
     class Config:
         orm_mode = True
 
 class FeatureRequestComment(BaseModel):
-  status: str
-  admin_comment: str
+    """관리자가 기능 요청에 답변을 달 때 사용하는 스키마"""
+    status: str
+    admin_comment: str
 
-# --- User Guide 스키마 ---
+
+# ==========================================
+# 4. User Guide (사용자 가이드) 스키마
+# ==========================================
 class UserGuideCreate(BaseModel):
     category: str
     title: str
@@ -80,27 +88,6 @@ class UserGuideCreate(BaseModel):
 class UserGuideResponse(UserGuideCreate):
     id: int
     created_at: datetime
+
     class Config:
         orm_mode = True
-
-# --- Feature Request 스키마 ---
-class FeatureRequestCreate(BaseModel):
-    title: str
-    content: str
-    author_id: str
-    author_name: str
-
-class FeatureRequestResponse(FeatureRequestCreate):
-    id: int
-    status: str
-    upvotes: int
-    comments_count: int
-    admin_comment: Optional[str] = None  # [추가]
-    created_at: datetime
-    class Config:
-        orm_mode = True
-
-# [추가] 관리자 댓글용 스키마
-class FeatureRequestComment(BaseModel):
-    status: str
-    admin_comment: str
