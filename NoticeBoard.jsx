@@ -1,7 +1,3 @@
-/// <summary>
-/// 공지사항 및 업데이트 게시판.
-/// CRUD 로직과 전문화된 에디터 UI(Rich Text Toolbar, Checkbox 등)를 완벽하게 통합했습니다.
-/// </summary>
 import React, { useState, useEffect, Fragment } from 'react';
 import { Megaphone, Plus, ChevronRight, Pin, X, Edit2, Trash2, Bold, Italic, List, Link, Paperclip } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
@@ -37,7 +33,6 @@ export default function NoticeBoard() {
     } catch (err) { console.error("공지사항 로드 실패", err); }
   };
 
-  // 버튼 작동 이벤트 핸들러
   const openWriteModal = () => {
     setEditMode(false);
     setFormData({ type: 'Notice', title: '', content: '', is_pinned: false });
@@ -65,12 +60,14 @@ export default function NoticeBoard() {
       await axios.delete(`${API_BASE_URL}/api/notices/${selectedNotice.id}`);
       setIsViewModalOpen(false);
       fetchNotices();
-    } catch (err) { alert("삭제 실패"); }
+    } catch (err) { alert("삭제 실패: " + err.message); }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if(!currentUser) return;
+    if(!currentUser) {
+        alert("로그인 정보가 없습니다."); return;
+    }
     try {
       const payload = { ...formData, author_id: currentUser.employee_id };
       if (editMode) {
@@ -80,7 +77,7 @@ export default function NoticeBoard() {
       }
       setIsWriteModalOpen(false);
       fetchNotices();
-    } catch (err) { alert("저장 실패"); }
+    } catch (err) { alert("저장 실패: 서버 연결을 확인하세요."); console.error(err); }
   };
 
   return (
@@ -119,7 +116,6 @@ export default function NoticeBoard() {
         </div>
       </div>
 
-      {/* --- 전문화된 작성/수정 모달 (복구됨) --- */}
       <Transition appear show={isWriteModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsWriteModalOpen(false)}>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
@@ -136,7 +132,6 @@ export default function NoticeBoard() {
               </div>
 
               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-6 custom-scrollbar">
-                {/* 1. 기본 설정 */}
                 <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex gap-4">
                     <div className="w-1/4">
@@ -161,7 +156,6 @@ export default function NoticeBoard() {
                   </div>
                 </div>
 
-                {/* 2. 에디터 영역 */}
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                   <div className="flex items-center gap-2 bg-slate-100 border-b border-slate-200 p-2 text-slate-500">
                     <button type="button" className="p-1.5 hover:bg-white rounded"><Bold size={16}/></button>
@@ -173,7 +167,6 @@ export default function NoticeBoard() {
                   <textarea required placeholder="상세 내용을 작성해 주세요." value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full h-64 p-4 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500/20 resize-none text-sm leading-relaxed text-slate-700" />
                 </div>
 
-                {/* 3. 첨부 파일 (디자인) */}
                 <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 flex flex-col items-center justify-center text-slate-500 hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer">
                   <Paperclip size={24} className="mb-2 text-slate-400" />
                   <span className="text-sm font-bold">참고 자료 첨부 (PDF, 이미지 등)</span>
@@ -190,13 +183,12 @@ export default function NoticeBoard() {
         </Dialog>
       </Transition>
 
-      {/* --- 상세 조회 모달 --- */}
       <Transition appear show={isViewModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsViewModalOpen(false)}>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="fixed inset-0 flex items-center justify-center p-4">
-            <Dialog.Panel className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+            <Dialog.Panel className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-start shrink-0">
                 <div>
                   <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded mb-2 inline-block">{selectedNotice?.type}</span>
                   <Dialog.Title className="text-2xl font-bold text-[#002554] mt-1">{selectedNotice?.title}</Dialog.Title>
@@ -204,11 +196,11 @@ export default function NoticeBoard() {
                 </div>
                 <button onClick={() => setIsViewModalOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer"><X size={24}/></button>
               </div>
-              <div className="p-6 bg-slate-50 min-h-[200px] whitespace-pre-wrap text-slate-700 leading-relaxed">
+              <div className="p-6 bg-slate-50 min-h-[200px] whitespace-pre-wrap text-slate-700 leading-relaxed overflow-y-auto">
                 {selectedNotice?.content}
               </div>
               {isAdmin && (
-                <div className="p-4 bg-white border-t border-slate-100 flex justify-end gap-2">
+                <div className="p-4 bg-white border-t border-slate-100 flex justify-end gap-2 shrink-0">
                   <button onClick={handleDelete} className="flex items-center gap-1 px-4 py-2 text-red-600 font-bold hover:bg-red-50 rounded-lg cursor-pointer"><Trash2 size={16}/> 삭제</button>
                   <button onClick={handleEditClick} className="flex items-center gap-1 px-4 py-2 text-[#002554] font-bold hover:bg-slate-100 rounded-lg cursor-pointer"><Edit2 size={16}/> 수정</button>
                 </div>
