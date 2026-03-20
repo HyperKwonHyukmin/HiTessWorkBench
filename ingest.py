@@ -38,7 +38,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from rank_bm25 import BM25Okapi
 
-from config import (
+from .config import (
     REPORTS_DIR,
     VECTORSTORE_DIR,
     OLLAMA_BASE_URL,
@@ -194,7 +194,7 @@ def load_pdf_pymupdf(file_path: Path) -> tuple[list[Document], str]:
 
 
 def load_documents(data_dir: Path):
-    """reports_data 폴더의 모든 지원 파일을 로드한다."""
+    """reports_data 폴더의 모든 지원 파을 로드한다."""
     docs = []
     files = list(data_dir.rglob("*"))
     supported = [f for f in files if f.suffix.lower() in (".pdf", ".docx", ".txt")]
@@ -313,7 +313,7 @@ def generate_doc_summaries(docs):
 
 
 def build_vectorstore(child_chunks, parent_store):
-    """자식 청크를 벡터 DB에, 부모 청크를 JSON에 저장한다."""
+    """자식 청크를 벡터 DB에, 부모 청를 JSON에 저장한다."""
     embeddings = OllamaEmbeddings(
         model=EMBEDDING_MODEL,
         base_url=OLLAMA_BASE_URL,
@@ -341,7 +341,7 @@ def main():
         sys.exit(1)
 
     print(f"[2/5] 부모-자식 청킹 중…")
-    print(f"      부모: {PARENT_CHUNK_SIZE}자 / 자: {CHILD_CHUNK_SIZE}자")
+    print(f"      부모: {PARENT_CHUNK_SIZE}자 / 자식: {CHILD_CHUNK_SIZE}자")
     parent_store, child_chunks = split_parent_child(docs)
     print(f"      부모 {len(parent_store)}개 / 자식 {len(child_chunks)}개 생성.\n")
 
