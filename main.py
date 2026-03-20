@@ -8,6 +8,9 @@ import subprocess
 import os
 import uuid
 from datetime import datetime
+import psutil
+import time
+from sqlalchemy import text
 
 # DB 테이블 자동 생성
 models.Base.metadata.create_all(bind=database.engine)
@@ -34,7 +37,7 @@ app.add_middleware(
 SERVER_VERSION = "1.0.0"
 
 # ✅ 비동기 작업 진행도를 저장할 메모리 저장소 (딕셔너리)
-# 실제 상용화 시에는 Redis로 교체하는 것이 가장 좋습니다.
+# 실제 상화 시에는 Redis로 교체하는 것이 가장 좋습니다.
 job_status_store = {}
 
 
@@ -280,7 +283,7 @@ async def request_truss_analysis(
     task_execute_truss, job_id, node_path, member_path, work_dir, exe_path, exe_dir, employee_id, timestamp
   )
 
-  # 서버는 브라우저를 잡고 있지 않고 즉시 ID만 돌려줌
+  # 서버는 브라우저를 잡고 있지 않고 시 ID만 돌려줌
   return {"job_id": job_id}
 
 # ==============================================================================
@@ -387,3 +390,37 @@ def delete_user_guide(guide_id: int, db: Session = Depends(database.get_db)):
         db.delete(db_guide)
         db.commit()
     return {"message": "Deleted"}
+
+# ==============================================================================
+# [NEW] System Monitoring API (Real-time)
+# ==============================================================================
+@app.get("/api/system/status")
+def get_system_status(db: Session = Depends(database.get_db)):
+    # 1. CPU 사용량 (현재 순간의 % 반환)
+    cpu_usage = psutil.cpu_percent(interval=0.1)
+
+    # 2. 메모리 사용량 (GB 단위로 변환)
+    mem = psutil.virtual_memory()
+    mem_used_gb = round(mem.used / (1024 ** 3), 1)
+    mem_total_gb = round(mem.total / (1024 ** 3), 1)
+
+    # 3. DB 연결 상태 및 응답 속도 (Latency) 측정
+    db_status = "Disconnected"
+    latency_ms = 0
+    try:
+        start_time = time.time()
+        # 간단한 쿼리로 DB 생존 여부 확인
+        db.execute(text("SELECT 1"))
+        latency_ms = round((time.time() - start_time) * 1000)
+        db_status = "Connected"
+    except Exception:
+        db_status = "Disconnected"
+        latency_ms = 0
+
+    return {
+        "cpu_usage": cpu_usage,
+        "memory_used_gb": mem_used_gb,
+        "memory_total_gb": mem_total_gb,
+        "db_status": db_status,
+        "latency_ms": latency_ms
+    }
