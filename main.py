@@ -284,10 +284,10 @@ async def request_truss_analysis(
   return {"job_id": job_id}
 
 # ==============================================================================
-# [NEW] Support & Community API
+# [NEW] Support & Community API (CRUD)
 # ==============================================================================
 
-# --- Notice API ---
+# ----------------- Notice (공지사항) -----------------
 @app.get("/api/notices", response_model=list[schemas.NoticeResponse])
 def get_notices(db: Session = Depends(database.get_db)):
     return db.query(models.Notice).order_by(models.Notice.is_pinned.desc(), models.Notice.created_at.desc()).all()
@@ -300,56 +300,6 @@ def create_notice(notice: schemas.NoticeCreate, db: Session = Depends(database.g
     db.refresh(new_notice)
     return new_notice
 
-# --- Feature Request API ---
-@app.get("/api/feature-requests", response_model=list[schemas.FeatureRequestResponse])
-def get_feature_requests(db: Session = Depends(database.get_db)):
-    return db.query(models.FeatureRequest).order_by(models.FeatureRequest.upvotes.desc(), models.FeatureRequest.created_at.desc()).all()
-
-@app.post("/api/feature-requests", response_model=schemas.FeatureRequestResponse)
-def create_feature_request(req: schemas.FeatureRequestCreate, db: Session = Depends(database.get_db)):
-    new_req = models.FeatureRequest(**req.dict())
-    db.add(new_req)
-    db.commit()
-    db.refresh(new_req)
-    return new_req
-
-@app.delete("/api/feature-requests/{req_id}")
-def delete_feature_request(req_id: int, db: Session = Depends(database.get_db)):
-    req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
-    db.delete(req)
-    db.commit()
-    return {"message": "Deleted"}
-
-# --- User Guide API ---
-@app.get("/api/user-guides", response_model=list[schemas.UserGuideResponse])
-def get_user_guides(db: Session = Depends(database.get_db)):
-    return db.query(models.UserGuide).order_by(models.UserGuide.category, models.UserGuide.created_at).all()
-
-@app.post("/api/user-guides", response_model=schemas.UserGuideResponse)
-def create_user_guide(guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
-    new_guide = models.UserGuide(**guide.dict())
-    db.add(new_guide)
-    db.commit()
-    db.refresh(new_guide)
-    return new_guide
-
-@app.put("/api/user-guides/{guide_id}")
-def update_user_guide(guide_id: int, guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
-    db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
-    for key, value in guide.dict().items():
-        setattr(db_guide, key, value)
-    db.commit()
-    db.refresh(db_guide)
-    return db_guide
-
-@app.delete("/api/user-guides/{guide_id}")
-def delete_user_guide(guide_id: int, db: Session = Depends(database.get_db)):
-    db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
-    db.delete(db_guide)
-    db.commit()
-    return {"message": "Deleted"}
-
-# --- Notice 수정 및 삭제 API ---
 @app.put("/api/notices/{notice_id}", response_model=schemas.NoticeResponse)
 def update_notice(notice_id: int, notice: schemas.NoticeCreate, db: Session = Depends(database.get_db)):
     db_notice = db.query(models.Notice).filter(models.Notice.id == notice_id).first()
@@ -366,36 +316,74 @@ def delete_notice(notice_id: int, db: Session = Depends(database.get_db)):
     db.commit()
     return {"message": "Deleted"}
 
+# ----------------- Feature Request (기능 요청) -----------------
+@app.get("/api/feature-requests", response_model=list[schemas.FeatureRequestResponse])
+def get_feature_requests(db: Session = Depends(database.get_db)):
+    return db.query(models.FeatureRequest).order_by(models.FeatureRequest.upvotes.desc(), models.FeatureRequest.created_at.desc()).all()
+
+@app.post("/api/feature-requests", response_model=schemas.FeatureRequestResponse)
+def create_feature_request(req: schemas.FeatureRequestCreate, db: Session = Depends(database.get_db)):
+    new_req = models.FeatureRequest(**req.dict())
+    db.add(new_req)
+    db.commit()
+    db.refresh(new_req)
+    return new_req
+
+# [복구됨] 따봉(추천) 기능 API
+@app.put("/api/feature-requests/{req_id}/upvote")
+def upvote_feature_request(req_id: int, db: Session = Depends(database.get_db)):
+    req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
+    if req:
+        req.upvotes += 1
+        db.commit()
+    return {"message": "Upvoted"}
+
 @app.put("/api/feature-requests/{req_id}/comment")
 def comment_feature_request(req_id: int, comment_data: schemas.FeatureRequestComment, db: Session = Depends(database.get_db)):
     req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
-    req.status = comment_data.status
-    req.admin_comment = comment_data.admin_comment
-    req.comments_count = 1 if comment_data.admin_comment else 0
-    db.commit()
-    db.refresh(req)
+    if req:
+        req.status = comment_data.status
+        req.admin_comment = comment_data.admin_comment
+        req.comments_count = 1 if comment_data.admin_comment else 0
+        db.commit()
+        db.refresh(req)
     return req
 
 @app.delete("/api/feature-requests/{req_id}")
 def delete_feature_request(req_id: int, db: Session = Depends(database.get_db)):
     req = db.query(models.FeatureRequest).filter(models.FeatureRequest.id == req_id).first()
-    db.delete(req)
-    db.commit()
+    if req:
+        db.delete(req)
+        db.commit()
     return {"message": "Deleted"}
 
-# --- User Guide 수정 및 삭제 API ---
+# ----------------- User Guide (사용자 가이드) -----------------
+@app.get("/api/user-guides", response_model=list[schemas.UserGuideResponse])
+def get_user_guides(db: Session = Depends(database.get_db)):
+    return db.query(models.UserGuide).order_by(models.UserGuide.category, models.UserGuide.created_at).all()
+
+@app.post("/api/user-guides", response_model=schemas.UserGuideResponse)
+def create_user_guide(guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
+    new_guide = models.UserGuide(**guide.dict())
+    db.add(new_guide)
+    db.commit()
+    db.refresh(new_guide)
+    return new_guide
+
 @app.put("/api/user-guides/{guide_id}")
 def update_user_guide(guide_id: int, guide: schemas.UserGuideCreate, db: Session = Depends(database.get_db)):
     db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
-    for key, value in guide.dict().items():
-        setattr(db_guide, key, value)
-    db.commit()
-    db.refresh(db_guide)
+    if db_guide:
+        for key, value in guide.dict().items():
+            setattr(db_guide, key, value)
+        db.commit()
+        db.refresh(db_guide)
     return db_guide
 
 @app.delete("/api/user-guides/{guide_id}")
 def delete_user_guide(guide_id: int, db: Session = Depends(database.get_db)):
     db_guide = db.query(models.UserGuide).filter(models.UserGuide.id == guide_id).first()
-    db.delete(db_guide)
-    db.commit()
+    if db_guide:
+        db.delete(db_guide)
+        db.commit()
     return {"message": "Deleted"}
