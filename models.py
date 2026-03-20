@@ -44,27 +44,24 @@ class Notice(Base):
 
 
 class UserGuide(Base):
-    __tablename__ = "user_guides"
-    id = Column(Integer, primary_key=True, index=True)
-    category = Column(String(100))
-    title = Column(String(200))
-    content = Column(String(5000))
-    author_id = Column(String(50))
-    created_at = Column(DateTime(timezone=True), default=datetime.now)
+  __tablename__ = "user_guides"
+  id = Column(Integer, primary_key=True, index=True)
+  category = Column(String(100))
+  title = Column(String(200))
+  content = Column(String(10000))
+  author_id = Column(String(50))
+  created_at = Column(DateTime(timezone=True), default=datetime.now)
 
 
 class FeatureRequest(Base):
   __tablename__ = "feature_requests"
   id = Column(Integer, primary_key=True, index=True)
   title = Column(String(200))
-  content = Column(String(2000))
+  content = Column(String(5000))
   status = Column(String(50), default="Under Review")
   upvotes = Column(Integer, default=0)
   comments_count = Column(Integer, default=0)
   author_id = Column(String(50))
   author_name = Column(String(50))
-
-  # [신규 추가] 관리자 피드백 댓글 컬럼
-  admin_comment = Column(String(2000), nullable=True)
-
+  admin_comment = Column(String(5000), nullable=True)  # 관리자 댓글
   created_at = Column(DateTime(timezone=True), default=datetime.now)
