@@ -33,3 +33,70 @@ class UserResponse(BaseModel):
 
   class Config:
     orm_mode = True  # SQLAlchemy 모델을 Pydantic으로 변환 허용
+
+# [기존 UserResponse 아래에 추가]
+
+# --- Notice 스키마 ---
+class NoticeCreate(BaseModel):
+    type: str
+    title: str
+    content: str
+    is_pinned: bool
+    author_id: str
+
+class NoticeResponse(NoticeCreate):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+# --- Feature Request 스키마 ---
+class FeatureRequestCreate(BaseModel):
+    title: str
+    content: str
+    author_id: str
+    author_name: str
+
+class FeatureRequestResponse(FeatureRequestCreate):
+    id: int
+    status: str
+    upvotes: int
+    comments_count: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+# --- User Guide 스키마 ---
+class UserGuideCreate(BaseModel):
+    category: str
+    title: str
+    content: str
+    author_id: str
+
+class UserGuideResponse(UserGuideCreate):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+# --- Feature Request 스키마 ---
+class FeatureRequestCreate(BaseModel):
+    title: str
+    content: str
+    author_id: str
+    author_name: str
+
+class FeatureRequestResponse(FeatureRequestCreate):
+    id: int
+    status: str
+    upvotes: int
+    comments_count: int
+    admin_comment: Optional[str] = None  # [추가]
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+# [추가] 관리자 댓글용 스키마
+class FeatureRequestComment(BaseModel):
+    status: str
+    admin_comment: str
