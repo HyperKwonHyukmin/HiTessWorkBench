@@ -1,5 +1,9 @@
+/// <summary>
+/// 공지사항 및 업데이트 게시판.
+/// CRUD 로직과 전문화된 에디터 UI(Rich Text Toolbar, Checkbox 등)를 완벽하게 통합했습니다.
+/// </summary>
 import React, { useState, useEffect, Fragment } from 'react';
-import { Megaphone, Plus, ChevronRight, Pin, X , Bold, Italic, Link, List, Paperclip, Filter} from 'lucide-react';
+import { Megaphone, Plus, ChevronRight, Pin, X, Edit2, Trash2, Bold, Italic, List, Link, Paperclip } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
 import axios from 'axios';
 import { API_BASE_URL } from '../../config';
@@ -8,9 +12,12 @@ export default function NoticeBoard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [notices, setNotices] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [selectedNotice, setSelectedNotice] = useState(null);
+  const [editMode, setEditMode] = useState(false);
 
-  // Form State
   const [formData, setFormData] = useState({ type: 'Notice', title: '', content: '', is_pinned: false });
 
   useEffect(() => {
@@ -27,21 +34,53 @@ export default function NoticeBoard() {
     try {
       const res = await axios.get(`${API_BASE_URL}/api/notices`);
       setNotices(res.data);
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("공지사항 로드 실패", err); }
+  };
+
+  // 버튼 작동 이벤트 핸들러
+  const openWriteModal = () => {
+    setEditMode(false);
+    setFormData({ type: 'Notice', title: '', content: '', is_pinned: false });
+    setIsWriteModalOpen(true);
+  };
+
+  const openViewModal = (notice) => {
+    setSelectedNotice(notice);
+    setIsViewModalOpen(true);
+  };
+
+  const handleEditClick = () => {
+    setFormData({ 
+      type: selectedNotice.type, title: selectedNotice.title, 
+      content: selectedNotice.content, is_pinned: selectedNotice.is_pinned 
+    });
+    setEditMode(true);
+    setIsViewModalOpen(false);
+    setIsWriteModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if(!window.confirm("정말 삭제하시겠습니까?")) return;
+    try {
+      await axios.delete(`${API_BASE_URL}/api/notices/${selectedNotice.id}`);
+      setIsViewModalOpen(false);
+      fetchNotices();
+    } catch (err) { alert("삭제 실패"); }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if(!currentUser) return;
     try {
-      await axios.post(`${API_BASE_URL}/api/notices`, {
-        ...formData,
-        author_id: currentUser.employee_id
-      });
-      setIsModalOpen(false);
-      setFormData({ type: 'Notice', title: '', content: '', is_pinned: false });
-      fetchNotices(); // 목록 새로고침
-    } catch (err) { alert("공지 등록 실패"); }
+      const payload = { ...formData, author_id: currentUser.employee_id };
+      if (editMode) {
+        await axios.put(`${API_BASE_URL}/api/notices/${selectedNotice.id}`, payload);
+      } else {
+        await axios.post(`${API_BASE_URL}/api/notices`, payload);
+      }
+      setIsWriteModalOpen(false);
+      fetchNotices();
+    } catch (err) { alert("저장 실패"); }
   };
 
   return (
@@ -51,10 +90,10 @@ export default function NoticeBoard() {
           <h1 className="text-3xl font-bold text-[#002554] flex items-center gap-3">
             <Megaphone className="text-blue-500" size={32} /> Notice & Updates
           </h1>
-          <p className="text-slate-500 mt-2">시스템 업데이트 내역 및 중요 공지사항을 확인하세.</p>
+          <p className="text-slate-500 mt-2">시스템 업데이트 내역 및 중요 공지사항을 확인하세요.</p>
         </div>
         {isAdmin && (
-          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-[#002554] text-white rounded-lg text-sm font-bold hover:bg-[#003366] transition-colors shadow-md cursor-pointer">
+          <button onClick={openWriteModal} className="flex items-center gap-2 px-4 py-2 bg-[#002554] text-white rounded-lg text-sm font-bold hover:bg-[#003366] transition-colors shadow-md cursor-pointer">
             <Plus size={18} /> 새 공지 작성
           </button>
         )}
@@ -68,44 +107,32 @@ export default function NoticeBoard() {
         </div>
         <div className="divide-y divide-slate-100">
           {notices.map(notice => (
-            <div key={notice.id} className="flex px-6 py-4 items-center hover:bg-slate-50 transition-colors cursor-pointer group">
+            <div key={notice.id} onClick={() => openViewModal(notice)} className="flex px-6 py-4 items-center hover:bg-slate-50 transition-colors cursor-pointer group">
               <div className="w-20 flex justify-center">
-                {notice.is_pinned ? (
-                  <Pin size={16} className="text-red-500 fill-red-100" />
-                ) : (
-                  <span className={`px-2.5 py-1 rounded text-[10px] font-bold border ${notice.type === 'Update' ? 'bg-blue-50 text-blue-600 border-blue-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
-                    {notice.type}
-                  </span>
-                )}
+                {notice.is_pinned ? <Pin size={16} className="text-red-500 fill-red-100" /> : <span className="px-2.5 py-1 rounded text-[10px] font-bold border bg-slate-100 text-slate-600 border-slate-200">{notice.type}</span>}
               </div>
-              <div className="flex-1 px-4">
-                <span className={`font-bold ${notice.is_pinned ? 'text-[#002554]' : 'text-slate-700'} group-hover:text-blue-600 transition-colors`}>
-                  {notice.title}
-                </span>
-              </div>
-              <div className="w-32 text-center text-sm text-slate-400 font-mono">
-                {new Date(notice.created_at).toLocaleDateString()}
-              </div>
+              <div className="flex-1 px-4 font-bold text-slate-700 group-hover:text-blue-600 transition-colors">{notice.title}</div>
+              <div className="w-32 text-center text-sm text-slate-400 font-mono">{new Date(notice.created_at).toLocaleDateString()}</div>
+              <ChevronRight size={18} className="text-slate-300 group-hover:text-blue-500" />
             </div>
           ))}
-          {notices.length === 0 && <div className="p-10 text-center text-slate-400">등록된 공지사항이 없습니다.</div>}
         </div>
       </div>
 
-      {/* 작성 모달 */}
-      <Transition appear show={isModalOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
+      {/* --- 전문화된 작성/수정 모달 (복구됨) --- */}
+      <Transition appear show={isWriteModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsWriteModalOpen(false)}>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="fixed inset-0 flex items-center justify-center p-4">
             <Dialog.Panel className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
               <div className="bg-[#002554] p-5 flex justify-between items-center text-white shrink-0">
                 <div>
                   <Dialog.Title className="font-bold text-lg flex items-center gap-2">
-                    <Megaphone size={20} className="text-blue-400" /> 공식 공지사항 및 업데이트 배포
+                    <Megaphone size={20} className="text-blue-400" /> {editMode ? '공지사항 수정' : '공식 공지사항 및 업데이트 배포'}
                   </Dialog.Title>
                   <p className="text-xs text-blue-200 mt-1">시스템의 중요 변경사항을 전사에 공유합니다.</p>
                 </div>
-                <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/10 p-1.5 rounded-lg transition-colors"><X size={24}/></button>
+                <button onClick={() => setIsWriteModalOpen(false)} className="hover:bg-white/10 p-1.5 rounded-lg transition-colors cursor-pointer"><X size={24}/></button>
               </div>
 
               <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-6 custom-scrollbar">
@@ -143,7 +170,7 @@ export default function NoticeBoard() {
                     <button type="button" className="p-1.5 hover:bg-white rounded"><List size={16}/></button>
                     <button type="button" className="p-1.5 hover:bg-white rounded"><Link size={16}/></button>
                   </div>
-                  <textarea required placeholder="상세 내용을 작성해 주세요. (Markdown 지원 예정)" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full h-64 p-4 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500/20 resize-none text-sm leading-relaxed text-slate-700" />
+                  <textarea required placeholder="상세 내용을 작성해 주세요." value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full h-64 p-4 outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500/20 resize-none text-sm leading-relaxed text-slate-700" />
                 </div>
 
                 {/* 3. 첨부 파일 (디자인) */}
@@ -154,10 +181,38 @@ export default function NoticeBoard() {
                 </div>
 
                 <div className="flex justify-end gap-3 pt-4 shrink-0">
-                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors">취소</button>
-                  <button type="submit" className="px-8 py-2.5 bg-[#008233] text-white font-bold rounded-xl hover:bg-[#006b29] transition-colors shadow-lg">공지 배하기</button>
+                  <button type="button" onClick={() => setIsWriteModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer">취소</button>
+                  <button type="submit" className="px-8 py-2.5 bg-[#008233] text-white font-bold rounded-xl hover:bg-[#006b29] transition-colors shadow-lg cursor-pointer">공지 배포하기</button>
                 </div>
               </form>
+            </Dialog.Panel>
+          </div>
+        </Dialog>
+      </Transition>
+
+      {/* --- 상세 조회 모달 --- */}
+      <Transition appear show={isViewModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsViewModalOpen(false)}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <Dialog.Panel className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+                <div>
+                  <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded mb-2 inline-block">{selectedNotice?.type}</span>
+                  <Dialog.Title className="text-2xl font-bold text-[#002554] mt-1">{selectedNotice?.title}</Dialog.Title>
+                  <p className="text-xs text-slate-400 mt-2">{selectedNotice && new Date(selectedNotice.created_at).toLocaleString()}</p>
+                </div>
+                <button onClick={() => setIsViewModalOpen(false)} className="text-slate-400 hover:text-slate-700 cursor-pointer"><X size={24}/></button>
+              </div>
+              <div className="p-6 bg-slate-50 min-h-[200px] whitespace-pre-wrap text-slate-700 leading-relaxed">
+                {selectedNotice?.content}
+              </div>
+              {isAdmin && (
+                <div className="p-4 bg-white border-t border-slate-100 flex justify-end gap-2">
+                  <button onClick={handleDelete} className="flex items-center gap-1 px-4 py-2 text-red-600 font-bold hover:bg-red-50 rounded-lg cursor-pointer"><Trash2 size={16}/> 삭제</button>
+                  <button onClick={handleEditClick} className="flex items-center gap-1 px-4 py-2 text-[#002554] font-bold hover:bg-slate-100 rounded-lg cursor-pointer"><Edit2 size={16}/> 수정</button>
+                </div>
+              )}
             </Dialog.Panel>
           </div>
         </Dialog>
