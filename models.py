@@ -29,3 +29,42 @@ class Analysis(Base):
   input_info = Column(JSON)  # 예: {"node": "경로...", "member": "경로..."}
   result_info = Column(JSON)  # 예: {"bdf": "경로...", "log": "경로..."}
   created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+# [기존 Analysis 클래스 아래에 다음 코드 추가]
+
+class Notice(Base):
+    __tablename__ = "notices"
+    id = Column(Integer, primary_key=True, index=True)
+    type = Column(String(50))  # Update, Notice 등
+    title = Column(String(200))
+    content = Column(String(2000))
+    is_pinned = Column(Boolean, default=False)
+    author_id = Column(String(50))
+    created_at = Column(DateTime(timezone=True), default=datetime.now)
+
+
+class UserGuide(Base):
+    __tablename__ = "user_guides"
+    id = Column(Integer, primary_key=True, index=True)
+    category = Column(String(100))
+    title = Column(String(200))
+    content = Column(String(5000))
+    author_id = Column(String(50))
+    created_at = Column(DateTime(timezone=True), default=datetime.now)
+
+
+class FeatureRequest(Base):
+  __tablename__ = "feature_requests"
+  id = Column(Integer, primary_key=True, index=True)
+  title = Column(String(200))
+  content = Column(String(2000))
+  status = Column(String(50), default="Under Review")
+  upvotes = Column(Integer, default=0)
+  comments_count = Column(Integer, default=0)
+  author_id = Column(String(50))
+  author_name = Column(String(50))
+
+  # [신규 추가] 관리자 피드백 댓글 컬럼
+  admin_comment = Column(String(2000), nullable=True)
+
+  created_at = Column(DateTime(timezone=True), default=datetime.now)
