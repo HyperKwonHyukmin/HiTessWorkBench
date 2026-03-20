@@ -66,6 +66,10 @@ class FeatureRequestResponse(FeatureRequestCreate):
     class Config:
         orm_mode = True
 
+class FeatureRequestComment(BaseModel):
+  status: str
+  admin_comment: str
+
 # --- User Guide 스키마 ---
 class UserGuideCreate(BaseModel):
     category: str
