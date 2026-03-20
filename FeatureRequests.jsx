@@ -1,7 +1,3 @@
-/// <summary>
-/// 사용자 기능 요청 및 피드백 게시판.
-/// 고급 작성 폼(모듈, 중요도 선택)과 관리자의 상태 변경 및 피드백 댓글 기능을 결합했습니다.
-/// </summary>
 import React, { useState, useEffect, Fragment } from 'react';
 import { Lightbulb, Plus, ThumbsUp, MessageCircle, X, Trash2, Send, Tag, Flag } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
@@ -55,13 +51,13 @@ export default function FeatureRequests() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if(!currentUser) return alert("로그인이 필요합니다.");
+    if(!currentUser) { alert("로그인이 필요합니다."); return; }
     try {
       await axios.post(`${API_BASE_URL}/api/feature-requests`, {
         ...formData, author_id: currentUser.employee_id, author_name: currentUser.name
       });
       setIsWriteModalOpen(false); fetchRequests();
-    } catch (err) { alert("요청 실패"); }
+    } catch (err) { alert("요청 제출 실패"); }
   };
 
   const handleDelete = async () => {
@@ -77,7 +73,7 @@ export default function FeatureRequests() {
       await axios.put(`${API_BASE_URL}/api/feature-requests/${selectedReq.id}/comment`, adminReply);
       alert("관리자 답변이 저장되었습니다.");
       setIsViewModalOpen(false); fetchRequests();
-    } catch (err) { alert("저장 실"); }
+    } catch (err) { alert("저장 실패"); }
   };
 
   const statusColors = {
@@ -121,7 +117,6 @@ export default function FeatureRequests() {
         ))}
       </div>
 
-      {/* --- 전문화된 작성 모달 (복구됨) --- */}
       <Transition appear show={isWriteModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsWriteModalOpen(false)}>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
@@ -157,7 +152,7 @@ export default function FeatureRequests() {
                   <label className="block text-xs font-bold text-slate-500 mb-1">상세 제안 내용 (Description)</label>
                   <div className="bg-white rounded-lg border border-slate-200 focus-within:border-green-500 overflow-hidden">
                     <textarea required placeholder="현재의 불편한 점과 개선점을 상세히 적어주세요." value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full h-40 p-4 outline-none resize-none text-sm text-slate-700 leading-relaxed" />
-                    <div className="bg-slate-50 border-t border-slate-100 p-2 text-xs text-slate-400 font-mono text-right">* 제출된 제안은 운영진 검토 후 Status가 변경됩니다.</div>
+                    <div className="bg-slate-50 border-t border-slate-100 p-2 text-xs text-slate-400 font-mono text-right">* 제출된 제은 운영진 검토 후 Status가 변경됩니다.</div>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
@@ -170,13 +165,12 @@ export default function FeatureRequests() {
         </Dialog>
       </Transition>
 
-      {/* --- 상세 조회 및 관리자 피드백 모달 --- */}
       <Transition appear show={isViewModalOpen} as={Fragment}>
         <Dialog as="div" className="relative z-50" onClose={() => setIsViewModalOpen(false)}>
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="fixed inset-0 flex items-center justify-center p-4">
             <Dialog.Panel className="w-full max-w-3xl bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-start shrink-0">
                 <div>
                   <span className={`px-2.5 py-1 text-[10px] font-bold uppercase rounded-full border inline-block mb-2 ${statusColors[selectedReq?.status]}`}>{selectedReq?.status}</span>
                   <Dialog.Title className="text-2xl font-bold text-slate-800">{selectedReq?.title}</Dialog.Title>
@@ -188,8 +182,7 @@ export default function FeatureRequests() {
               <div className="p-6 overflow-y-auto custom-scrollbar space-y-6">
                 <div className="whitespace-pre-wrap text-sm text-slate-700 leading-relaxed">{selectedReq?.content}</div>
                 
-                {/* 관리자 코멘트 영역 */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 shrink-0">
                   <h4 className="text-xs font-bold text-indigo-600 mb-3 flex items-center gap-1"><MessageCircle size={14}/> Admin Feedback</h4>
                   {isAdmin ? (
                      <div className="space-y-3">
