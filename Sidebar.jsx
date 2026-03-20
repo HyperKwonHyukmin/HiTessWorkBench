@@ -10,7 +10,8 @@ import {
   Bot,            // AI Lab Assistant
   Library,        // Knowledge Archive
   Settings,       // System Settings
-  ChevronLeft, 
+  BarChart3,      // Analysis Management
+  ChevronLeft,
   ChevronRight,
   ShieldAlert,    // User Management
   Lock,           // 모달용 아이콘
@@ -89,6 +90,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
       category: "ADMINISTRATION", 
       items: [
         { icon: ShieldAlert, label: "User Management" },
+        { icon: BarChart3, label: "Analysis Management" },
         { icon: Settings, label: "System Settings" }
       ]
     });
@@ -113,7 +115,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
   const handleAuthSubmit = (e) => {
     e.preventDefault();
     // [중요] 2차 보안 비밀번호 설정 (기본값: admin1234)
-    // 상용화 시에는 이 부분도 백엔드 API와 통신하여 검증하도록 변경해야 합니다.
+    // 상용화 시에는 이 분도 백엔드 API와 통신하여 검증하도록 변경해야 합니다.
     if (adminPassword === 'str_2006') {
       setIsSecondaryAuthPassed(true);  // 세션 인증 통과 마킹
       setIsAuthModalOpen(false);       // 모달 닫기
@@ -140,7 +142,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
           )}
         </div>
 
-        {/* 메뉴 렌더링 역 */}
+        {/* 메뉴 렌더링 영역 */}
         <nav className="flex-1 overflow-y-auto py-4 custom-scrollbar">
           {menuItems.map((section, idx) => (
             <div key={idx} className="mb-6">
