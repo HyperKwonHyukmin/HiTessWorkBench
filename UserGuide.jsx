@@ -1,76 +1,179 @@
 /// <summary>
-/// 플랫폼 사용법 및 도메인 지식을 제공하는 가이드 문서 페이지입니다.
-/// 관리자(is_admin = true)만 문서를 편집하거나 추가할 수 있습니다.
+/// 사용자 가이드라인 게시판.
+/// 와이드 모달(max-w-7xl) 내에서 Write / Preview 탭 기능을 지원하며, 인라인 수정 및 삭제가 가능합니다.
 /// </summary>
-import React, { useState, useEffect } from 'react';
-import { BookOpen, Edit3, Search, FileText } from 'lucide-react';
+import React, { useState, useEffect, Fragment } from 'react';
+import { BookOpen, Edit3, FileText, X, Terminal, Eye, Trash2, Edit2 } from 'lucide-react';
+import { Dialog, Transition } from '@headlessui/react';
+import axios from 'axios';
+import { API_BASE_URL } from '../../config';
 
 export default function UserGuide() {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [guides, setGuides] = useState([]);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPreview, setIsPreview] = useState(false); 
+  const [editMode, setEditMode] = useState(false);
+  const [selectedGuideId, setSelectedGuideId] = useState(null);
+
+  const [activeCategory, setActiveCategory] = useState("Getting Started");
+  const [formData, setFormData] = useState({ category: 'Getting Started', title: '', content: '' });
+
+  const categories = ["Getting Started", "Analysis Modules", "Result Interpretation", "Troubleshooting"];
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
       setIsAdmin(JSON.parse(storedUser).is_admin);
+      setCurrentUser(JSON.parse(storedUser));
     }
+    fetchGuides();
   }, []);
 
-  const categories = ["Getting Started", "Analysis Modules", "Result Interpretation", "Troubleshooting"];
+  const fetchGuides = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/user-guides`);
+      setGuides(res.data);
+    } catch (err) { console.error("가이드 로드 실패", err); }
+  };
+
+  // 버튼 작동 이벤트 핸들러
+  const openWriteModal = () => {
+    setEditMode(false); setIsPreview(false);
+    setFormData({ category: activeCategory, title: '', content: '' });
+    setIsModalOpen(true);
+  };
+
+  const openEditModal = (guide) => {
+    setEditMode(true); setIsPreview(false); setSelectedGuideId(guide.id);
+    setFormData({ category: guide.category, title: guide.title, content: guide.content });
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (id) => {
+    if(!window.confirm("이 가이드를 삭제하시겠습니까?")) return;
+    try { 
+      await axios.delete(`${API_BASE_URL}/api/user-guides/${id}`); 
+      fetchGuides(); 
+    } catch (err) { alert("삭제 실패"); }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = { ...formData, author_id: currentUser.employee_id };
+      if (editMode) await axios.put(`${API_BASE_URL}/api/user-guides/${selectedGuideId}`, payload);
+      else await axios.post(`${API_BASE_URL}/api/user-guides`, payload);
+      setIsModalOpen(false); fetchGuides();
+    } catch (err) { alert("저장 실패"); }
+  };
+
+  const currentGuides = guides.filter(g => g.category === activeCategory);
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] animate-fade-in-up">
       <div className="flex justify-between items-end mb-6 shrink-0">
         <div>
-          <h1 className="text-3xl font-bold text-[#002554] flex items-center gap-3">
-            <BookOpen className="text-indigo-500" size={32} /> User Guide
-          </h1>
+          <h1 className="text-3xl font-bold text-[#002554] flex items-center gap-3"><BookOpen className="text-indigo-500" size={32} /> User Guide</h1>
           <p className="text-slate-500 mt-2">시스템 매뉴얼 및 해석 기준 가이드라인을 확인하세요.</p>
         </div>
         <div className="flex gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-            <input type="text" placeholder="문서 검색..." className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm outline-none focus:border-indigo-400 shadow-sm" />
-          </div>
-          {/* 관리자에게만 편집 권한 부여 */}
           {isAdmin && (
-            <button className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-700 transition-colors shadow-md cursor-pointer">
-              <Edit3 size={18} /> 가이드 편집
+            <button onClick={openWriteModal} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-700 shadow-md cursor-pointer">
+              <Edit3 size={18} /> 새 가이드 작성
             </button>
           )}
         </div>
       </div>
 
-      {/* 가이드 레이아웃 (좌측 메뉴, 우측 콘텐츠) */}
       <div className="flex gap-6 flex-1 min-h-0">
         <div className="w-64 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col gap-2 overflow-y-auto shrink-0 shadow-sm">
-          {categories.map((cat, idx) => (
-            <button key={idx} className={`text-left px-4 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer ${idx === 0 ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
+          {categories.map((cat) => (
+            <button key={cat} onClick={() => setActiveCategory(cat)} className={`text-left px-4 py-3 rounded-xl text-sm font-bold transition-colors cursor-pointer ${activeCategory === cat ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'}`}>
               {cat}
             </button>
           ))}
         </div>
 
-        <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-8 overflow-y-auto shadow-sm">
-          <div className="flex items-center gap-2 text-indigo-600 font-bold mb-4">
-            <FileText size={20} /> Getting Started
-          </div>
-          <h2 className="text-2xl font-extrabold text-[#002554] mb-6">Hi-TESS WorkBench 시작하기</h2>
-          
-          <div className="prose prose-slate max-w-none text-slate-600">
-            <p className="mb-4">본 가이드는 Hi-TESS WorkBench의 기본 사용법과 초기 설정 방법을 안내합니다.</p>
-            <h3 className="text-lg font-bold text-slate-800 mt-6 mb-2">1. 프로젝트 생성 (New Analysis)</h3>
-            <p className="mb-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
-              좌측 메뉴에서 <strong>File-Based Analysis</strong> 또는 <strong>Interactive Apps</strong>를 클릭하여 수행하고자 하는 해석 모듈(Truss, Beam 등)을 선택합니다. 
-              자주 사용하는 모듈은 별(★) 아이콘을 클릭하여 대시보드 즐겨찾기에 추가할 수 있습니다.
-            </p>
-            <h3 className="text-lg font-bold text-slate-800 mt-6 mb-2">2. 파일 업로드 및 해석 실행</h3>
-            <p className="mb-4">
-              요구되는 CSV 형식의 파일(Node, Member 등)을 드래그 앤 드롭으로 업로드한 후, <strong>Run Analysis</strong> 버튼을 클릭합니다.
-              해석은 백그라운드 서버서 비동기로 수행되며, 대시보드나 My Projects에서 진행률을 확인할 수 있습니다.
-            </p>
-          </div>
+        <div className="flex-1 bg-white border border-slate-200 rounded-2xl p-8 overflow-y-auto shadow-sm relative">
+          <div className="flex items-center gap-2 text-indigo-600 font-bold mb-6 border-b border-slate-100 pb-4"><FileText size={20} /> {activeCategory}</div>
+          {currentGuides.length === 0 ? <p className="text-slate-400">등록된 가이드라인이 없습니다.</p> : 
+            currentGuides.map(guide => (
+              <div key={guide.id} className="mb-10 prose prose-slate max-w-none text-slate-600 group relative pr-20">
+                <h3 className="text-xl font-extrabold text-[#002554] mb-3">{guide.title}</h3>
+                {/* 관리자 인라인 삭제/수정 버튼 */}
+                {isAdmin && (
+                  <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                     <button onClick={() => openEditModal(guide)} className="p-2 bg-slate-100 text-slate-600 rounded hover:bg-blue-100 hover:text-blue-600 cursor-pointer"><Edit2 size={16}/></button>
+                     <button onClick={() => handleDelete(guide.id)} className="p-2 bg-slate-100 text-slate-600 rounded hover:bg-red-100 hover:text-red-600 cursor-pointer"><Trash2 size={16}/></button>
+                  </div>
+                )}
+                <p className="bg-slate-50 p-5 rounded-xl border border-slate-100 whitespace-pre-wrap leading-relaxed">{guide.content}</p>
+              </div>
+            ))
+          }
         </div>
       </div>
+
+      {/* --- 와이드형 전문 작성 모달 (복구됨) --- */}
+      <Transition appear show={isModalOpen} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={() => setIsModalOpen(false)}>
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <Dialog.Panel className="w-full max-w-7xl h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="bg-indigo-600 p-5 flex justify-between items-center text-white shrink-0">
+                <Dialog.Title className="font-extrabold text-lg flex items-center gap-2"><BookOpen size={20}/> {editMode ? '가이드라인 수정' : '시스템 가이드라인 제정'}</Dialog.Title>
+                <button onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 p-1.5 rounded-lg cursor-pointer"><X size={24}/></button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="flex-1 overflow-hidden bg-slate-50 p-6 flex gap-6">
+                <div className="w-1/4 space-y-5 overflow-y-auto custom-scrollbar pr-2">
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <label className="block text-xs font-bold text-indigo-600 uppercase mb-2">분류 (Category)</label>
+                    <select value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})} className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 font-bold text-slate-700 bg-slate-50">
+                      {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <label className="block text-xs font-bold text-indigo-600 uppercase mt-4 mb-2">대상 버전 (Target Version)</label>
+                    <input type="text" placeholder="ex) v1.0.0 이상" className="w-full p-2.5 border border-slate-200 rounded-lg outline-none focus:border-indigo-500 text-sm font-mono" />
+                  </div>
+                  <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                     <p className="text-xs text-indigo-800 font-bold mb-1">💡 작성 팁</p>
+                     <p className="text-[11px] text-indigo-600 leading-relaxed">마크다운(Markdown) 문법을 사용하여 구조적인 기술 문서를 작성할 수 있습니다.</p>
+                  </div>
+                </div>
+
+                <div className="w-3/4 flex flex-col gap-4 h-full">
+                  <div className="shrink-0">
+                    <input type="text" required placeholder="가이드 소제목 (명확하게 기재)" value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 font-bold text-lg text-slate-800 shadow-sm" />
+                  </div>
+                  
+                  <div className="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                    <div className="flex items-center gap-4 bg-slate-100 border-b border-slate-200 p-2 px-4 shrink-0">
+                      <button type="button" onClick={() => setIsPreview(false)} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${!isPreview ? 'bg-white text-indigo-600 border-slate-200 shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-800'}`}><Terminal size={14}/> Write</button>
+                      <button type="button" onClick={() => setIsPreview(true)} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${isPreview ? 'bg-white text-indigo-600 border-slate-200 shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-800'}`}><Eye size={14}/> Preview</button>
+                    </div>
+                    
+                    {!isPreview ? (
+                      <textarea required placeholder="가이드 내용을 작성하세요." value={formData.content} onChange={e=>setFormData({...formData, content: e.target.value})} className="flex-1 p-4 outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500/20 resize-none font-mono text-sm text-slate-700 leading-relaxed bg-slate-50" />
+                    ) : (
+                      <div className="flex-1 p-5 overflow-y-auto bg-white text-sm text-slate-800 leading-relaxed whitespace-pre-wrap border-[3px] border-indigo-100 m-2 rounded-xl">
+                        {formData.content || <span className="text-slate-400 italic">내용이 없습니다.</span>}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex justify-end gap-3 shrink-0 pt-2">
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-white border border-slate-300 hover:bg-slate-50 transition-colors cursor-pointer">취소</button>
+                    <button type="submit" className="px-8 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg cursor-pointer">가이드라인 배포</button>
+                  </div>
+                </div>
+              </form>
+            </Dialog.Panel>
+          </div>
+        </Dialog>
+      </Transition>
     </div>
   );
 }
