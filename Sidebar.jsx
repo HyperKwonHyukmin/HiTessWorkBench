@@ -78,7 +78,7 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
     menuItems.push({
       category: "ADMINISTRATION", 
       items: [
-        { icon: ShieldAlert, label: "Admin Test Page" },
+        { icon: ShieldAlert, label: "Admin Menu" },
         { icon: Settings, label: "User Management" }
       ]
     });
