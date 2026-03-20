@@ -11,7 +11,8 @@ from datetime import datetime
 import psutil
 import time
 from sqlalchemy import text
-from pydantic import BaseModel  # [NEW] AI ChatRequest 스키마용
+from pydantic import BaseModel
+from concurrent.futures import ThreadPoolExecutor
 
 # DB 테이블 자동 생성
 models.Base.metadata.create_all(bind=database.engine)
@@ -37,7 +38,13 @@ app.add_middleware(
 # ==========================================
 SERVER_VERSION = "1.0.0"
 
-# ✅ 비동기 작업 진도를 저장할 메모리 저장소 (딕셔너리)
+# ✅ [NEW] 석 서버 동시 실행 제한 (Queue 시스템)
+# 현재 서버 사양에 맞춰 최대 동시 실행 개수를 지정합니다.
+# 이 숫자를 넘어가면 자동으로 'Pending(대기)' 상태로 큐에 쌓입니다.
+MAX_CONCURRENT_JOBS = 5
+analysis_executor = ThreadPoolExecutor(max_workers=MAX_CONCURRENT_JOBS)
+
+# ✅ 비동기 작업 진행도를 저장할 메모리 저장소 (딕셔너리)
 # 실제 상화 시에는 Redis로 교체하는 것이 가장 좋습니다.
 job_status_store = {}
 
@@ -274,15 +281,16 @@ async def request_truss_analysis(
   except Exception as e:
     raise HTTPException(status_code=500, detail=f"File save error: {str(e)}")
 
+  # ... (위쪽 코드 생략) ...
   exe_dir = os.path.abspath(os.path.join(parent_dir, "InHouseProgram", "TrussModelBuilder"))
   exe_path = os.path.join(exe_dir, "TrussModelBuilder.exe")
 
-  # 🚀 고유 Job ID 생성 및 초기화
+  # 🚀 고유 Job ID 생성 및 초기화 (초기 상태를 '대기 중'으로 설정)
   job_id = str(uuid.uuid4())
-  job_status_store[job_id] = {"status": "Pending", "progress": 0, "message": "Request Received"}
+  job_status_store[job_id] = {"status": "Pending", "progress": 0, "message": "Waiting in Queue..."}
 
-  # 백그라운드 워커에 일거리 투척!
-  background_tasks.add_task(
+  # 🚀 [수정됨] background_tasks 대신 제한된 큐(ThreadPoolExecutor)에 작업을 밀어 넣음
+  analysis_executor.submit(
     task_execute_truss, job_id, node_path, member_path, work_dir, exe_path, exe_dir, employee_id, timestamp, source
   )
 
@@ -456,19 +464,28 @@ def get_all_analysis_history(db: Session = Depends(database.get_db)):
 # ==============================================================================
 class ChatRequest(BaseModel):
   question: str
+  chat_history: list[dict] = []
+  target_document: str = "all"  # ✅ [신규] 프론트에서 지정한 검색 대상 문서
 
 
 @app.post("/api/ai/chat")
 def ai_chat(req: ChatRequest):
-  """React에서 질문을 받아 LLM(chain.py)을 통해 답변을 반환합니다."""
+  """React에서 질문, 대화기록, 타겟 문서를 받아 LLM(chain.py)을 통해 답변과 출처를 반환합니다."""
   try:
-    # 실제 chain.py 안에 정의된 메인 답변 생성 함수인 'query'를 불러옵니다.
     from .AI.chain import query
 
-    # query 함수는 답변(answer)과 출처(docs) 두 가지를 반환합니다.
-    answer, docs = query(req.question)
+    # ✅ 신규 파라미터 적용
+    answer, docs = query(
+      question=req.question,
+      chat_history=req.chat_history,
+      target_document=req.target_document
+    )
 
-    return {"answer": answer}
+    # ✅ 답변(answer)과 참조 원문(sources)을 함께 반환
+    return {
+      "answer": answer,
+      "sources": docs
+    }
   except Exception as e:
     print(f"AI Chat Error: {e}")
     raise HTTPException(status_code=500, detail=str(e))
@@ -508,3 +525,19 @@ def get_ai_documents():
   except Exception as e:
     print(f"AI Fetch Docs Error: {e}")
     return {"documents": {}}
+
+
+# ==============================================================================
+# [NEW] Server Queue Monitoring API
+# ==============================================================================
+@app.get("/api/system/queue-status")
+def get_queue_status():
+  """현재 실행 중인 해석과 큐에서 대기 중인 해석 건수를 반환합니다."""
+  running_count = sum(1 for job in job_status_store.values() if job["status"] == "Running")
+  pending_count = sum(1 for job in job_status_store.values() if job["status"] == "Pending")
+
+  return {
+    "running": running_count,
+    "pending": pending_count,
+    "limit": MAX_CONCURRENT_JOBS
+  }
