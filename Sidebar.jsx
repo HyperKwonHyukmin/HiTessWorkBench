@@ -78,8 +78,8 @@ export default function Sidebar({ isCollapsed, toggleSidebar, isAdmin, currentMe
     menuItems.push({
       category: "ADMINISTRATION", 
       items: [
-        { icon: ShieldAlert, label: "Admin Menu" },
-        { icon: Settings, label: "User Management" }
+        { icon: ShieldAlert, label: "User Management" },
+        { icon: Settings, label: "System Settings" }
       ]
     });
   }
