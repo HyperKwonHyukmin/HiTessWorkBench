@@ -18,16 +18,20 @@ class User(Base):
   last_login = Column(DateTime(timezone=True), nullable=True)  # 마지막 로그인 시간
   created_at = Column(DateTime(timezone=True), default=datetime.now)
 
+
 class Analysis(Base):
   __tablename__ = "analysis"
   id = Column(Integer, primary_key=True, index=True)
-  project_name = Column(String(200), nullable=True)  # [추가] 프로젝트/작업명
-  program_name = Column(String(100))  # 해석 종류 (예: TrussModelBuilder)
-  employee_id = Column(String(50), index=True)  # 요청자 사번
-  status = Column(String(50))  # Success, Failed
-  # 파일 메타데이터를 JSON으로 저장
-  input_info = Column(JSON)  # 예: {"node": "경로...", "member": "경로..."}
-  result_info = Column(JSON)  # 예: {"bdf": "경로...", "log": "경로..."}
+  project_name = Column(String(200), nullable=True)
+  program_name = Column(String(100))
+  employee_id = Column(String(50), index=True)
+  status = Column(String(50))
+  input_info = Column(JSON)
+  result_info = Column(JSON)
+
+  # [신규 추가] 해석 요청 출처 (예: 'Workbench', 'External API' 등)
+  source = Column(String(50), default="Workbench")
+
   created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 # [기존 Analysis 클래스 아래에 다음 코드 추가]
